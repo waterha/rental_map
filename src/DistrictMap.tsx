@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { LoaderCircle, RotateCcw } from 'lucide-react'
 import { geoContains } from 'd3-geo'
 import type { Marker, Region } from './types'
@@ -9,7 +9,7 @@ import type { AMapInstance, AMapOverlay, AMapSDK, Ring } from './amap'
 import { MetroControl, useMetro } from './MetroLayer'
 import { clipMetroPath } from './metro-geometry'
 
-export default function DistrictMap({ region, feature, markers, onListing }: { region: Region; feature?: MapFeature; markers: Marker[]; onListing: (id: string) => void }) {
+export default memo(function DistrictMap({ region, feature, markers, onListing }: { region: Region; feature?: MapFeature; markers: Marker[]; onListing: (id: string) => void }) {
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<AMapInstance | null>(null)
   const sdkRef = useRef<AMapSDK | null>(null)
@@ -21,6 +21,8 @@ export default function DistrictMap({ region, feature, markers, onListing }: { r
   const [metroEnabled, setMetroEnabled] = useState(false)
   const metro = useMetro(region.code, metroEnabled)
   const [metroLines, setMetroLines] = useState(0)
+  const [centerLng, centerLat] = region.center
+  const normalizedFeature = useMemo(() => feature ? normalizeWinding({ type: 'FeatureCollection', features: [feature] }).features[0] : null, [feature])
 
   useEffect(() => {
     if (!container.current || !feature) return
@@ -33,7 +35,7 @@ export default function DistrictMap({ region, feature, markers, onListing }: { r
       if (disposed || !container.current) return
       sdkRef.current = sdk
       map = new sdk.Map(container.current, {
-        center: region.center, zoom: 12, zooms: [3, 20], viewMode: '3D', pitch: 0,
+        center: [centerLng, centerLat], zoom: 12, zooms: [3, 20], viewMode: '3D', pitch: 0,
         mapStyle: 'amap://styles/darkblue', resizeEnable: true, dragEnable: true,
         zoomEnable: true, scrollWheel: false, doubleClickZoom: true, touchZoom: true,
         rotateEnable: false, pitchEnable: false, keyboardEnable: true,
@@ -77,7 +79,7 @@ export default function DistrictMap({ region, feature, markers, onListing }: { r
       }, 25000)
     }).catch(error => { if (!disposed) { setError(error.message); setStatus('error') } })
     return () => { disposed = true; clearTimeout(timeout); removeWheel?.(); map?.destroy(); mapRef.current = null; sdkRef.current = null }
-  }, [region.code, region.center, feature, retry])
+  }, [region.code, centerLng, centerLat, feature, retry])
 
   useEffect(() => {
     const map = mapRef.current, sdk = sdkRef.current
@@ -95,16 +97,15 @@ export default function DistrictMap({ region, feature, markers, onListing }: { r
       let position: [number, number] = [marker.longitude, marker.latitude]
       // Seed coordinates use administrative centers plus offsets, which may fall outside a narrow district.
       // Keep only demonstration pins inside their actual district mask; never relocate real listings.
-      if (marker.isDemo && feature) {
-        const normalized = normalizeWinding({ type: 'FeatureCollection', features: [feature] }).features[0]
+      if (marker.isDemo && feature && normalizedFeature) {
         const centroid = feature.properties.centroid
-        if (!geoContains(normalized, position) && centroid && geoContains(normalized, centroid)) position = centroid
+        if (!geoContains(normalizedFeature, position) && centroid && geoContains(normalizedFeature, centroid)) position = centroid
       }
       return new sdk.Marker({ position, content, offset: new sdk.Pixel(0, 0), anchor: 'center', zIndex: 300, title: content.title })
     })
     map.add(overlays)
     return () => { if (mapRef.current === map && overlays.length) map.remove(overlays) }
-  }, [markers, status, feature])
+  }, [markers, status, feature, normalizedFeature])
 
   useEffect(() => {
     const map = mapRef.current, sdk = sdkRef.current, network = metro.network
@@ -143,4 +144,4 @@ export default function DistrictMap({ region, feature, markers, onListing }: { r
     {status === 'loading' && feature && <div className="map-loading" role="status"><LoaderCircle size={20} className="spin" /><span>正在展开街道地图</span></div>}
     {status === 'error' && <div className="map-notice" role="alert"><p>{error}</p><button onClick={() => setRetry(value => value + 1)}><RotateCcw size={14} />重新加载</button></div>}
   </div>
-}
+})
