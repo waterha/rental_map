@@ -1,0 +1,25 @@
+import { chromium } from '@playwright/test'
+const browser = await chromium.launch({ channel: 'msedge', headless: true })
+const page = await browser.newPage({ viewport: { width: 1512, height: 982 } })
+const errors = []
+const diagnostics = []
+const redact = value => value.replace(/[a-f0-9]{32}/gi, '[redacted]')
+page.on('pageerror', error => errors.push(error.message.replace(/[a-f0-9]{32}/g, '[redacted]')))
+page.on('console', message => { if (message.type() === 'error' || message.type() === 'warning') diagnostics.push(redact(message.text()).slice(0, 300)) })
+page.on('requestfailed', request => diagnostics.push({ host: new URL(request.url()).host, error: request.failure()?.errorText }))
+page.on('response', response => { if (response.status() >= 400) diagnostics.push({ host: new URL(response.url()).host, status: response.status() }) })
+await page.goto('http://127.0.0.1:8080/')
+await page.getByRole('button', { name: '进入浙江省', exact: true }).waitFor()
+await page.screenshot({ path: '.local/fullscreen-country.png' })
+await page.getByRole('button', { name: '进入浙江省', exact: true }).press('Enter')
+await page.getByRole('button', { name: '进入杭州市', exact: true }).waitFor()
+await page.screenshot({ path: '.local/fullscreen-province.png' })
+await page.getByRole('button', { name: '进入杭州市', exact: true }).press('Enter')
+await page.getByRole('button', { name: '进入西湖区', exact: true }).waitFor()
+await page.screenshot({ path: '.local/fullscreen-city.png' })
+await page.getByRole('button', { name: '进入西湖区', exact: true }).press('Enter')
+try { await page.locator('.rental-light').first().waitFor({ timeout: 55000 }) } catch {}
+await page.waitForTimeout(6500)
+console.log(JSON.stringify({ breadcrumbs: await page.locator('.map-breadcrumbs').innerText(), pins: await page.locator('.rental-light').count(), zoom: await page.locator('.district-map').getAttribute('data-zoom'), notice: await page.locator('.map-notice').allTextContents(), errors, diagnostics }))
+await page.screenshot({ path: '.local/fullscreen-district.png' })
+await browser.close()
