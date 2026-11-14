@@ -102,6 +102,8 @@ npm run test:e2e:isolated
 
 隔离端到端测试自动使用 8081 端口和独立 SQLite 目录，完成后停止测试服务，不影响体验数据。需要 Microsoft Edge；高德实景用例使用真实 SDK 和网络，而非绘制假的道路。覆盖全屏首页、逐级下钻、房源只在区县请求、路径与历史恢复、滚轮与拖动、高德光点与详情、手机尺寸以及地图失败恢复。
 
+全国地图的卡顿原因、优化前后实测及性能复测方法见 [地图性能说明](docs/map-performance.md)。
+
 ## 数据来源与后续范围
 
 行政边界：[DataV.GeoAtlas](https://datav.aliyun.com/portal/school/atlas/area_selector)。常用城市边界已缓存，未缓存区域按需请求。部分地区暂无子级边界，不虚构下级行政区。区县街道底图：[高德地图 Web JS API](https://lbs.amap.com/api/javascript-api-v2/summary)。室内展示图片：[Unsplash](https://unsplash.com)。

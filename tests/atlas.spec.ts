@@ -57,6 +57,19 @@ test('left click enters the province underneath its label', async ({ page }) => 
   await expect(page).toHaveURL(/region=330000/)
 })
 
+test('rapid wheel inputs keep every delta and navigation resets the camera', async ({ page }) => {
+  await page.locator('.atlas-svg').evaluate(svg => {
+    for (let i = 0; i < 20; i++) svg.dispatchEvent(new WheelEvent('wheel', { clientX: 750, clientY: 450, deltaY: -5, bubbles: true, cancelable: true }))
+  })
+  const expectedZoom = Math.exp(20 * 5 * .0016)
+  await expect.poll(async () => Number(await page.locator('.map-camera').getAttribute('data-zoom'))).toBeCloseTo(expectedZoom, 3)
+  await expect.poll(async () => Number(await page.locator('.map-camera').getAttribute('data-pan-x'))).toBeCloseTo(750 * (1 - expectedZoom), 0)
+  await page.getByRole('button', { name: '进入浙江省', exact: true }).press('Enter')
+  await expect(page.getByRole('button', { name: '进入杭州市', exact: true })).toBeVisible()
+  await expect(page.locator('.map-camera')).toHaveAttribute('data-zoom', '1.0000')
+  await expect(page.locator('.map-camera')).toHaveAttribute('data-pan-x', '0.0')
+})
+
 test('real AMap district shows glowing rentals and opens a detail on click', async ({ page }) => {
   test.setTimeout(90000)
   const errors: string[] = []
