@@ -252,21 +252,26 @@ func (s *Server) metro(w http.ResponseWriter, r *http.Request) {
 		fail(w, 404, "未找到该城市")
 		return
 	}
-	if !metroScope(region) {
-		fail(w, 422, "请进入市级地图查看地铁")
+	if region.Level != "district" {
+		fail(w, 422, "请进入区县地图查看地铁")
+		return
+	}
+	city, exists := s.Maps.Get(region.Parent)
+	if !exists || !metroScope(city) {
+		fail(w, 422, "未找到该区县所属城市")
 		return
 	}
 	if s.Metro == nil {
 		fail(w, 503, "地铁图层暂不可用")
 		return
 	}
-	data, err := s.Metro.Read(r.Context(), code)
+	data, err := s.Metro.Read(r.Context(), city.Code)
 	if err != nil {
 		fail(w, 502, "地铁线路暂时加载失败，请重试")
 		return
 	}
 	if data.CityName == "" {
-		data.CityName = region.Name
+		data.CityName = city.Name
 	}
 	send(w, 200, data)
 }

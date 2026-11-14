@@ -6,6 +6,8 @@ import type { MapFeature } from './map-data'
 import { normalizeWinding } from './map-data'
 import { loadAMap } from './amap'
 import type { AMapInstance, AMapOverlay, AMapSDK, Ring } from './amap'
+import { MetroControl, useMetro } from './MetroLayer'
+import { clipMetroPath } from './metro-geometry'
 
 export default function DistrictMap({ region, feature, markers, onListing }: { region: Region; feature?: MapFeature; markers: Marker[]; onListing: (id: string) => void }) {
   const container = useRef<HTMLDivElement>(null)
@@ -16,6 +18,9 @@ export default function DistrictMap({ region, feature, markers, onListing }: { r
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [error, setError] = useState('')
   const [retry, setRetry] = useState(0)
+  const [metroEnabled, setMetroEnabled] = useState(false)
+  const metro = useMetro(region.code, metroEnabled)
+  const [metroLines, setMetroLines] = useState(0)
 
   useEffect(() => {
     if (!container.current || !feature) return
@@ -58,6 +63,7 @@ export default function DistrictMap({ region, feature, markers, onListing }: { r
         const center = map.getCenter()
         container.current.dataset.zoom = String(map.getZoom())
         container.current.dataset.center = `${center.lng.toFixed(6)},${center.lat.toFixed(6)}`
+        container.current.dataset.metroLabels = String(map.getZoom() >= 14)
       }
       map.on('zoomend', syncCamera); map.on('moveend', syncCamera); map.on('zoomchange', syncCamera)
       map.on('complete', () => {
@@ -100,8 +106,40 @@ export default function DistrictMap({ region, feature, markers, onListing }: { r
     return () => { if (mapRef.current === map && overlays.length) map.remove(overlays) }
   }, [markers, status, feature])
 
+  useEffect(() => {
+    const map = mapRef.current, sdk = sdkRef.current, network = metro.network
+    setMetroLines(0)
+    if (!metroEnabled || !network || !map || !sdk || status !== 'ready' || !feature) return
+    const geometry = feature.geometry
+    const polygons: Ring[][] = geometry.type === 'Polygon' ? [geometry.coordinates as Ring[]] : geometry.type === 'MultiPolygon' ? geometry.coordinates as Ring[][] : []
+    const normalized = normalizeWinding({ type: 'FeatureCollection', features: [feature] }).features[0]
+    const overlays: AMapOverlay[] = [], stations = new Set<string>()
+    let lineCount = 0
+    for (const line of network.lines) {
+      const points = line.stations.map(station => station.position)
+      if (line.loop && points.length > 2) points.push(points[0])
+      const segments = clipMetroPath(points, polygons)
+      if (!segments.length) continue
+      lineCount++
+      for (const path of segments) overlays.push(new sdk.Polyline({ path, strokeColor: line.color, strokeWeight: 5, strokeOpacity: .95, lineJoin: 'round', lineCap: 'round', isOutline: true, outlineColor: '#071521', borderWeight: 1.5, bubble: true, zIndex: 150 }))
+      for (const station of line.stations) {
+        const id = `${station.name}:${station.position.join(',')}`
+        if (stations.has(id) || !geoContains(normalized, station.position)) continue
+        stations.add(id)
+        const content = document.createElement('span')
+        content.className = `metro-station-pin ${station.transfer ? 'transfer' : ''}`
+        const label = document.createElement('span'); label.textContent = station.name; content.append(label)
+        overlays.push(new sdk.Marker({ position: station.position, content, offset: new sdk.Pixel(0, 0), anchor: 'center', zIndex: 170, title: station.name }))
+      }
+    }
+    map.add(overlays)
+    setMetroLines(lineCount)
+    return () => { if (mapRef.current === map && overlays.length) map.remove(overlays) }
+  }, [metroEnabled, metro.network, status, feature])
+
   return <div className="district-layer">
-    <div className="district-map" ref={container} aria-label={`${region.name}高德街道地图`} data-provider="amap" />
+    <div className="district-map" ref={container} aria-label={`${region.name}高德街道地图`} data-provider="amap" data-metro-enabled={metroEnabled} data-metro-lines={metroLines} />
+    <MetroControl enabled={metroEnabled} onToggle={() => setMetroEnabled(value => !value)} {...metro} />
     {status === 'loading' && feature && <div className="map-loading" role="status"><LoaderCircle size={20} className="spin" /><span>正在展开街道地图</span></div>}
     {status === 'error' && <div className="map-notice" role="alert"><p>{error}</p><button onClick={() => setRetry(value => value + 1)}><RotateCcw size={14} />重新加载</button></div>}
   </div>

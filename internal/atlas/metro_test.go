@@ -116,11 +116,12 @@ func TestMetroEndpointScopesAndNoCoverage(t *testing.T) {
 	s, _ := testServer(t)
 	s.Metro = testMetro(t)
 	delete(s.Metro.cities, "330100")
+	delete(s.Metro.cities, "310000")
 	h := s.Handler()
 	for _, item := range []struct {
 		path   string
 		status int
-	}{{"/api/metro/no", 400}, {"/api/metro/999999", 404}, {"/api/metro/100000", 422}, {"/api/metro/330000", 422}, {"/api/metro/330106", 422}, {"/api/metro/330100", 200}, {"/api/metro/310000", 200}} {
+	}{{"/api/metro/no", 400}, {"/api/metro/999999", 404}, {"/api/metro/100000", 422}, {"/api/metro/330000", 422}, {"/api/metro/330106", 200}, {"/api/metro/330100", 422}, {"/api/metro/310000", 422}, {"/api/metro/310104", 200}} {
 		res := get(t, h, item.path)
 		if res.Code != item.status {
 			t.Errorf("%s: got %d expected %d", item.path, res.Code, item.status)

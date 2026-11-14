@@ -18,6 +18,7 @@ interface MarkerOptions { position: Position; content: HTMLElement; offset: unkn
 export interface AMapSDK {
   Map: new (element: HTMLElement, options: Record<string, unknown>) => AMapInstance
   Polygon: new (options: Record<string, unknown>) => AMapOverlay
+  Polyline: new (options: Record<string, unknown>) => AMapOverlay
   Marker: new (options: MarkerOptions) => AMapOverlay
   Pixel: new (x: number, y: number) => unknown
 }

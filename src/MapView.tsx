@@ -4,7 +4,6 @@ import type { Region } from './types'
 import type { MapCollection, MapFeature } from './map-data'
 import { normalizeWinding } from './map-data'
 import { loadNationalMap } from './national-map'
-import { metroAvailable, MetroControl, MetroGeometry, useMetro } from './MetroLayer'
 
 interface View { x: number; y: number; k: number }
 const initialView: View = { x: 0, y: 0, k: 1 }
@@ -29,11 +28,6 @@ export default function MapView({ region, collection, onNavigate }: { region: Re
   const [dragging, setDragging] = useState(false)
   const drag = useRef<{ id: number; x: number; y: number; origin: View; feature?: MapFeature; moved: boolean } | null>(null)
   const country = region.code === '100000'
-  const canShowMetro = metroAvailable(region)
-  const [metroCity, setMetroCity] = useState('')
-  const metroEnabled = canShowMetro && metroCity === region.code
-  const metro = useMetro(region.code, metroEnabled)
-  useEffect(() => { setMetroCity('') }, [region.code])
   const [nationalDetail, setNationalDetail] = useState<MapCollection | null>(null)
   const detailed = country && view.k >= 3
   useEffect(() => {
@@ -156,10 +150,8 @@ export default function MapView({ region, collection, onNavigate }: { region: Re
           const name = country ? feature.properties.name.replace(/壮族自治区|回族自治区|维吾尔自治区|特别行政区|自治区|省|市$/g, '') : feature.properties.name
           return <text key={code} x={point[0] + offset[0] / view.k} y={point[1] + offset[1] / view.k} fontSize={fontSize} strokeWidth={3 / view.k} className={hovered === code ? 'label-active' : ''}>{name}</text>
         })}</g>
-        {metroEnabled && metro.network && <MetroGeometry network={metro.network} projection={projection} zoom={view.k} />}
       </g>
       {country && data && <g className="south-sea" pointerEvents="none" aria-label="南海诸岛"><rect x={inset.left} y={inset.top} width={inset.width} height={inset.height} rx="3" /><g clipPath="url(#sea-inset)">{insetShapes.map((d, index) => <path key={index} d={d} fill="#102b3d" stroke="#397791" strokeWidth=".7" />)}</g><text x={inset.left + inset.width / 2} y={inset.top + inset.height - 8} textAnchor="middle">南海诸岛</text></g>}
     </svg>
-    {canShowMetro && <MetroControl enabled={metroEnabled} onToggle={() => setMetroCity(metroEnabled ? '' : region.code)} {...metro} />}
   </div>
 }
