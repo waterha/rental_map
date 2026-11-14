@@ -15,6 +15,7 @@ try {
   Copy-Item -LiteralPath 'data/regions.json' -Destination (Join-Path $testDirectory 'regions.json')
   Copy-Item -LiteralPath 'data/maps' -Destination (Join-Path $testDirectory 'maps') -Recurse
   Copy-Item -LiteralPath 'data/images' -Destination (Join-Path $testDirectory 'images') -Recurse
+  Copy-Item -LiteralPath 'data/metro' -Destination (Join-Path $testDirectory 'metro') -Recurse
   & npm.cmd run build
   if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed.' }
   $testBinary = Join-Path $testDirectory 'test-server.exe'

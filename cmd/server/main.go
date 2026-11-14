@@ -52,7 +52,11 @@ func main() {
 	if v, ok := os.LookupEnv("ALLOW_PUBLISH"); ok {
 		publish = v == "true"
 	}
-	app := &atlas.Server{Store: store, Maps: maps, StaticDir: env("STATIC_DIR", "dist"), AllowPublish: publish, Auth: auth}
+	metro, err := atlas.NewMetro(directory)
+	if err != nil {
+		log.Fatal("地铁城市索引不存在或格式错误，请检查 data/metro/cities.json")
+	}
+	app := &atlas.Server{Store: store, Maps: maps, StaticDir: env("STATIC_DIR", "dist"), AllowPublish: publish, Auth: auth, Metro: metro}
 	server := &http.Server{Addr: addr, Handler: app.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 20 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
 	go func() {
 		<-ctx.Done()

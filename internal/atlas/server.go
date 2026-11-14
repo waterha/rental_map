@@ -26,6 +26,7 @@ type Server struct {
 	StaticDir    string
 	AllowPublish bool
 	Auth         *Auth
+	Metro        *Metro
 }
 type RegionCount struct {
 	Code    string `json:"code"`
@@ -50,6 +51,7 @@ func (s *Server) Handler() http.Handler {
 		send(w, 200, s.Maps.List(strings.TrimSpace(r.URL.Query().Get("q"))))
 	})
 	mux.HandleFunc("GET /api/maps/{code}", s.mapData)
+	mux.HandleFunc("GET /api/metro/{code}", s.metro)
 	mux.HandleFunc("GET /api/listings", s.listings)
 	mux.HandleFunc("GET /api/listings/{id}", s.detail)
 	mux.HandleFunc("POST /api/listings", s.create)

@@ -8,6 +8,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
     "maps:build": "node scripts/build-national-map.mjs",
+    "metro:download": "node scripts/download-metro.mjs",
     "test:maps": "node --test tests/map-geometry.test.mjs",
     "benchmark:map": "node scripts/benchmark-map.mjs --check",
     "preview": "vite preview --host 127.0.0.1",
