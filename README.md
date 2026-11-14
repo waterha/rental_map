@@ -25,7 +25,7 @@ QQ SMTP 配置使用后端专用 `.env.server.local`，自动加载，绝不使�
 | 层 | 选择 |
 |---|---|
 | 前端 | React 19、TypeScript、Vite 7 |
-| 全国 / 省 / 市 | D3 Geo + SVG，DataV.GeoAtlas 行政边界 |
+| 全国 / 省 / 市 | D3 Geo + SVG，DataV.GeoAtlas 行政边界；全国使用两档简化 TopoJSON 与共享省界 |
 | 区县 | 高德 Web JS API 2.0，深蓝底图、区县遮罩、道路 / 建筑 / 地名、房源标记 |
 | 后端 | Go 1.24+，标准库 net/http、database/sql |
 | 数据库 | 本地 SQLite；正式部署支持 PostgreSQL 17 / pgx |
@@ -103,6 +103,8 @@ npm run test:e2e:isolated
 隔离端到端测试自动使用 8081 端口和独立 SQLite 目录，完成后停止测试服务，不影响体验数据。需要 Microsoft Edge；高德实景用例使用真实 SDK 和网络，而非绘制假的道路。覆盖全屏首页、逐级下钻、房源只在区县请求、路径与历史恢复、滚轮与拖动、高德光点与详情、手机尺寸以及地图失败恢复。
 
 全国地图的卡顿原因、优化前后实测及性能复测方法见 [地图性能说明](docs/map-performance.md)。
+
+全国地图的轻量数据已包含在源码中。更新原始全国边界后执行 `npm run maps:build` 重新生成，再运行 `npm run test:maps` 检查省份、岛屿、边界误差和体积预算。
 
 ## 数据来源与后续范围
 

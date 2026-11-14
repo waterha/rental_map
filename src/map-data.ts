@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Feature, FeatureCollection, Geometry, MultiPolygon, Polygon } from 'geojson'
+import type { Feature, FeatureCollection, Geometry, MultiLineString, MultiPolygon, Polygon } from 'geojson'
 import { api } from './types'
 import type { Region } from './types'
+import { loadNationalMap } from './national-map'
 
 export interface Properties { adcode: string | number; name: string; center?: [number, number]; centroid?: [number, number]; childrenNum?: number; level?: Region['level'] }
 export type MapFeature = Feature<Geometry, Properties>
-export type MapCollection = FeatureCollection<Geometry, Properties>
+export interface MapCollection extends FeatureCollection<Geometry, Properties> { boundaryMesh?: MultiLineString }
 const cache = new Map<string, MapCollection>()
 
 export function useMapCollection(code: string) {
@@ -19,8 +20,10 @@ export function useMapCollection(code: string) {
     setError('')
     if (cache.has(code)) { setResult({ code, data: cache.get(code)! }); setLoading(false); return () => abort.abort() }
     setLoading(true)
-    api<MapCollection>(`/api/maps/${code}`, { signal: abort.signal }).then(data => {
-      cache.set(code, data); setResult({ code, data })
+    const request = code === '100000' ? loadNationalMap() : api<MapCollection>(`/api/maps/${code}`, { signal: abort.signal })
+    request.then(data => {
+      cache.set(code, data)
+      if (!abort.signal.aborted) setResult({ code, data })
     }).catch(error => { if (!abort.signal.aborted) setError(error.message) }).finally(() => { if (!abort.signal.aborted) setLoading(false) })
     return () => abort.abort()
   }, [code, attempt])

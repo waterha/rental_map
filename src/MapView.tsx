@@ -3,6 +3,7 @@ import { geoMercator, geoPath } from 'd3-geo'
 import type { Region } from './types'
 import type { MapCollection, MapFeature } from './map-data'
 import { normalizeWinding } from './map-data'
+import { loadNationalMap } from './national-map'
 
 interface View { x: number; y: number; k: number }
 const initialView: View = { x: 0, y: 0, k: 1 }
@@ -27,10 +28,20 @@ export default function MapView({ region, collection, onNavigate }: { region: Re
   const [dragging, setDragging] = useState(false)
   const drag = useRef<{ id: number; x: number; y: number; origin: View; feature?: MapFeature; moved: boolean } | null>(null)
   const country = region.code === '100000'
+  const [nationalDetail, setNationalDetail] = useState<MapCollection | null>(null)
+  const detailed = country && view.k >= 3
+  useEffect(() => {
+    if (!detailed || nationalDetail) return
+    let active = true
+    // Keep the overview usable if optional detail cannot be fetched.
+    void loadNationalMap(true).then(data => { if (active) setNationalDetail(data) }).catch(() => {})
+    return () => { active = false }
+  }, [detailed, nationalDetail])
+  const visibleCollection = detailed && nationalDetail ? nationalDetail : collection
   const raw = useMemo(() => {
-    if (!collection) return null
-    return !region.hasChildren ? { ...collection, features: collection.features.filter(feature => String(feature.properties.adcode) === region.code) } : collection
-  }, [collection, region.code, region.hasChildren])
+    if (!visibleCollection) return null
+    return !region.hasChildren ? { ...visibleCollection, features: visibleCollection.features.filter(feature => String(feature.properties.adcode) === region.code) } : visibleCollection
+  }, [visibleCollection, region.code, region.hasChildren])
   const data = useMemo(() => raw ? normalizeWinding(raw) : null, [raw])
   useEffect(() => {
     if (!host.current) return
@@ -79,6 +90,7 @@ export default function MapView({ region, collection, onNavigate }: { region: Re
   }, [size])
   // Projection is independent of the camera. Reuse paths across hover, pan and zoom.
   const shapes = useMemo(() => data?.features.map(feature => ({ feature, d: path(feature) || '' })) || [], [data, path])
+  const boundaryPath = useMemo(() => data?.boundaryMesh ? path(data.boundaryMesh) || '' : '', [data, path])
   const insetShapes = useMemo(() => country ? data?.features.map(feature => inset.path(feature) || '') || [] : [], [country, data, inset])
   function enter(feature: MapFeature) {
     if (!region.hasChildren) return
@@ -118,18 +130,18 @@ export default function MapView({ region, collection, onNavigate }: { region: Re
         <filter id="boundary-glow" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="3" /></filter>
         <clipPath id="sea-inset"><rect x={inset.left + 3} y={inset.top + 3} width={inset.width - 6} height={inset.height - 23} /></clipPath>
       </defs>
-      <g className="map-camera" data-zoom={view.k.toFixed(4)} data-pan-x={view.x.toFixed(1)} data-pan-y={view.y.toFixed(1)} transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
-        <g className="boundary-shadow" transform={`translate(0 ${4 / view.k})`} aria-hidden="true">{shapes.map(({ d }, index) => <path key={index} d={d} fill="#03121e" stroke="#15506a" strokeWidth="1" vectorEffect="non-scaling-stroke" />)}</g>
-        <g filter="url(#boundary-glow)" opacity=".33" pointerEvents="none">{shapes.map(({ d }, index) => <path key={index} d={d} stroke="#34c4ec" strokeWidth="1.2" fill="none" vectorEffect="non-scaling-stroke" />)}</g>
+      <g className="map-camera" data-detail={country ? detailed && nationalDetail ? 'detail' : 'overview' : 'regional'} data-zoom={view.k.toFixed(4)} data-pan-x={view.x.toFixed(1)} data-pan-y={view.y.toFixed(1)} transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
+        {!country && <g className="boundary-shadow" transform={`translate(0 ${4 / view.k})`} aria-hidden="true">{shapes.map(({ d }, index) => <path key={index} d={d} fill="#03121e" stroke="#15506a" strokeWidth="1" vectorEffect="non-scaling-stroke" />)}</g>}
+        <g filter="url(#boundary-glow)" opacity=".33" pointerEvents="none">{country ? <path d={boundaryPath} stroke="#34c4ec" strokeWidth="1.2" fill="none" vectorEffect="non-scaling-stroke" /> : shapes.map(({ d }, index) => <path key={index} d={d} stroke="#34c4ec" strokeWidth="1.2" fill="none" vectorEffect="non-scaling-stroke" />)}</g>
         {shapes.map(({ feature, d }, index) => {
           const code = String(feature.properties.adcode), interactive = /^\d{6}$/.test(code) && region.hasChildren
           return <path key={code} d={d} data-region={code} className={interactive ? 'region-shape' : 'boundary-line'} fill={hovered === code ? 'url(#hover-fill)' : index % 4 === 0 ? '#143448' : 'url(#province-fill)'}
-            stroke={hovered === code ? '#7ce9ff' : '#2a718f'} strokeWidth={hovered === code ? 1.6 : .85} vectorEffect="non-scaling-stroke"
+            stroke={hovered === code ? '#7ce9ff' : country ? 'none' : '#2a718f'} strokeWidth={hovered === code ? 1.6 : .85} vectorEffect="non-scaling-stroke"
             role={interactive ? 'button' : undefined} tabIndex={interactive ? 0 : undefined} aria-label={interactive ? `进入${feature.properties.name}` : undefined}
             onMouseEnter={() => !drag.current && setHovered(code)} onMouseLeave={() => setHovered('')}
             onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); enter(feature) } }} />
         })}
-        <g pointerEvents="none" aria-hidden="true">{shapes.map(({ d }, index) => <path key={index} d={d} fill="url(#map-grain)" />)}</g>
+        {country ? <path className="national-boundaries" d={boundaryPath} pointerEvents="none" fill="none" stroke="#2a718f" strokeWidth=".85" vectorEffect="non-scaling-stroke" /> : <g pointerEvents="none" aria-hidden="true">{shapes.map(({ d }, index) => <path key={index} d={d} fill="url(#map-grain)" />)}</g>}
         <g className="region-labels" pointerEvents="none">{data?.features.filter(feature => /^\d{6}$/.test(String(feature.properties.adcode))).map(feature => {
           const center = feature.properties.centroid || feature.properties.center
           if (!center) return null

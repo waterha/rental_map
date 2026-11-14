@@ -7,6 +7,8 @@
     "security:check": "node scripts/check-secrets.mjs",
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
+    "maps:build": "node scripts/build-national-map.mjs",
+    "test:maps": "node --test tests/map-geometry.test.mjs",
     "benchmark:map": "node scripts/benchmark-map.mjs --check",
     "preview": "vite preview --host 127.0.0.1",
     "test:e2e": "playwright test",
@@ -17,7 +19,8 @@
     "d3-geo": "^3.1.1",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "topojson-client": "^3.1.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",
@@ -26,6 +29,9 @@
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/topojson-client": "^3.1.5",
+    "@types/topojson-specification": "^1.0.5",
+    "topojson-server": "^3.0.1",
     "typescript": "~5.9.3",
     "vite": "^7.2.0"
   }

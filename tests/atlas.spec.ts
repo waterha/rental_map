@@ -70,6 +70,41 @@ test('rapid wheel inputs keep every delta and navigation resets the camera', asy
   await expect(page.locator('.map-camera')).toHaveAttribute('data-pan-x', '0.0')
 })
 
+test('national map uses compact geometry and loads detail only after zooming in', async ({ page }) => {
+  let detailRequests = 0
+  await page.route('**/china-detail.topo-*.json', async route => { detailRequests++; await route.continue() })
+  await expect(page.locator('.map-camera')).toHaveAttribute('data-detail', 'overview')
+  expect(detailRequests).toBe(0)
+  const overviewLength = await page.locator('.map-camera path').evaluateAll(paths => paths.reduce((n, p) => n + (p.getAttribute('d') || '').length, 0))
+  expect(overviewLength).toBeLessThan(1612488 * .5)
+  await expect(page.locator('.national-boundaries')).toHaveCount(1)
+  await page.locator('.atlas-svg').evaluate(svg => {
+    for (let i = 0; i < 4; i++) svg.dispatchEvent(new WheelEvent('wheel', { deltaY: -250, clientX: 750, clientY: 450, bubbles: true, cancelable: true }))
+  })
+  await expect(page.locator('.map-camera')).toHaveAttribute('data-detail', 'detail')
+  expect(detailRequests).toBe(1)
+  expect(Number(await page.locator('.map-camera').getAttribute('data-zoom'))).toBeGreaterThan(3)
+  const detailLength = await page.locator('.map-camera path').evaluateAll(paths => paths.reduce((n, p) => n + (p.getAttribute('d') || '').length, 0))
+  expect(detailLength).toBeGreaterThan(overviewLength)
+  await page.locator('.atlas-svg').evaluate(svg => {
+    for (let i = 0; i < 4; i++) svg.dispatchEvent(new WheelEvent('wheel', { deltaY: 250, clientX: 750, clientY: 450, bubbles: true, cancelable: true }))
+  })
+  await expect(page.locator('.map-camera')).toHaveAttribute('data-detail', 'overview')
+  await page.getByRole('button', { name: '进入澳门特别行政区', exact: true }).press('Enter')
+  await expect(page.locator('.map-breadcrumbs')).toContainText('澳门特别行政区')
+})
+
+test('optional national detail failure keeps the overview interactive', async ({ page }) => {
+  await page.route('**/china-detail.topo-*.json', route => route.abort())
+  await page.locator('.atlas-svg').evaluate(svg => {
+    for (let i = 0; i < 4; i++) svg.dispatchEvent(new WheelEvent('wheel', { deltaY: -250, bubbles: true, cancelable: true }))
+  })
+  await expect.poll(async () => Number(await page.locator('.map-camera').getAttribute('data-zoom'))).toBeGreaterThan(3)
+  await expect(page.locator('.map-camera')).toHaveAttribute('data-detail', 'overview')
+  await page.getByRole('button', { name: '进入浙江省', exact: true }).press('Enter')
+  await expect(page.getByRole('button', { name: '进入杭州市', exact: true })).toBeVisible()
+})
+
 test('real AMap district shows glowing rentals and opens a detail on click', async ({ page }) => {
   test.setTimeout(90000)
   const errors: string[] = []
