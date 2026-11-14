@@ -2,6 +2,12 @@
 
 科技黑与荧光蓝风格的全屏地图找房应用。首页只有中国地图和省级名称；逐级点击，最终在区县的高德街道地图上看到房源光点。
 
+## 邮箱账号
+
+左上角账号入口支持邮箱注册、密码登录与退出。允许 QQ、163、126、Gmail、Outlook、Hotmail、iCloud 的精确邮箱域名，后端校验邮箱格式与白名单；注册必须验证邮箱收到的验证码。验证码 2 分钟内有效、使用一次即失效，支持重发冷却、错误次数与请求限流。
+
+QQ SMTP 配置使用后端专用 `.env.server.local`，自动加载，绝不使用 `VITE_` 前缀。配置邮箱与授权码后重启 Go 服务即可；SMTP 不可用时明确报错，不返回虚假验证码。密码使用 bcrypt 保存，登录使用 HttpOnly Cookie。详情见 [账号系统说明](docs/accounts.md)。
+
 ## 当前交互
 
 1. 全国：全屏中国行政区地图，显示省名，不显示导航栏、侧栏、房源、统计或筛选器。
@@ -83,7 +89,7 @@ docker compose up --build -d
 
 Compose 使用 BuildKit 的构建 secret 读取 `.env.local`，构建过程中不打印凭据；高德 Web JS 客户端配置按需包含在前端产物中。应用端口仅绑定本机，数据库采用持久卷且不暴露端口。当前环境没有 Docker，尚未执行容器集成验证。外部数据库应按实际部署配置 TLS。
 
-Go 通过进程环境读取 `ADDR`（默认 `127.0.0.1:8080`）、`DATA_DIR`（默认 `data`）、`STATIC_DIR`（默认 `dist`）、`DATABASE_URL`、`ALLOW_PUBLISH`；不会自动读取 `.env`。当前界面不提供发布入口。
+Go 通过进程环境读取 `ADDR`（默认 `127.0.0.1:8080`）、`DATA_DIR`（默认 `data`）、`STATIC_DIR`（默认 `dist`）、`DATABASE_URL`、`ALLOW_PUBLISH`；启动时额外读取 `.env.server.local`，不会读取 `.env`。当前界面不提供发布入口，发布 API 启用时要求登录。
 
 ## 验证
 
@@ -100,4 +106,4 @@ npm run test:e2e:isolated
 
 行政边界：[DataV.GeoAtlas](https://datav.aliyun.com/portal/school/atlas/area_selector)。常用城市边界已缓存，未缓存区域按需请求。部分地区暂无子级边界，不虚构下级行政区。区县街道底图：[高德地图 Web JS API](https://lbs.amap.com/api/javascript-api-v2/summary)。室内展示图片：[Unsplash](https://unsplash.com)。
 
-当前为本地体验版本。真实房源采集、账号、发布审核、图片上传、地址核验尚未接入。正式公开地图和数据前需确认相应授权与适用要求。初版选型记录和本次地图改版说明见 [调研文档](docs/research.md)。
+当前为本地体验版本，已实现邮箱验证账号。真实房源采集、发布审核、图片上传、地址核验尚未接入。正式公开地图和数据前需确认相应授权与适用要求。初版选型记录和本次地图改版说明见 [调研文档](docs/research.md)。

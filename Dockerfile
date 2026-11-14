@@ -23,7 +23,7 @@ COPY --from=frontend /app/dist ./dist
 COPY data/regions.json ./data/regions.json
 COPY data/maps ./data/maps
 COPY data/images ./data/images
-RUN mkdir -p /app/runtime && chown -R atlas:atlas /app
+RUN mkdir -p /app/runtime /app/data/runtime && chown -R atlas:atlas /app
 USER atlas
 ENV ADDR=0.0.0.0:8080 DATA_DIR=/app/data ALLOW_PUBLISH=false
 EXPOSE 8080

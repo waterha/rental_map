@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"rentalatlas/internal/atlas"
+
+	"github.com/joho/godotenv"
 )
 
 func env(key, fallback string) string {
@@ -21,6 +23,10 @@ func env(key, fallback string) string {
 	return fallback
 }
 func main() {
+	// Backend credentials are separate from Vite's client configuration. Existing environment wins.
+	if err := godotenv.Load(".env.server.local"); err != nil && !errors.Is(err, os.ErrNotExist) {
+		log.Fatal("后端本地环境配置格式错误")
+	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	directory := env("DATA_DIR", "data")
@@ -33,6 +39,10 @@ func main() {
 		log.Fatal(err)
 	}
 	defer store.DB.Close()
+	auth, err := atlas.NewAuth(ctx, store, directory)
+	if err != nil {
+		log.Fatal("账号服务初始化失败，请检查后端配置")
+	}
 	if err = atlas.Seed(ctx, store, maps); err != nil {
 		log.Fatal(err)
 	}
@@ -42,7 +52,7 @@ func main() {
 	if v, ok := os.LookupEnv("ALLOW_PUBLISH"); ok {
 		publish = v == "true"
 	}
-	app := &atlas.Server{Store: store, Maps: maps, StaticDir: env("STATIC_DIR", "dist"), AllowPublish: publish}
+	app := &atlas.Server{Store: store, Maps: maps, StaticDir: env("STATIC_DIR", "dist"), AllowPublish: publish, Auth: auth}
 	server := &http.Server{Addr: addr, Handler: app.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 20 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
 	go func() {
 		<-ctx.Done()

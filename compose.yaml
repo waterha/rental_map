@@ -24,12 +24,17 @@ services:
       DATABASE_URL: postgres://atlas:${POSTGRES_PASSWORD}@db:5432/rental_atlas?sslmode=disable
       ADDR: 0.0.0.0:8080
       ALLOW_PUBLISH: ${ALLOW_PUBLISH:-false}
+    env_file:
+      - .env.server.local
+    volumes:
+      - auth_runtime:/app/data/runtime
     depends_on:
       db:
         condition: service_healthy
     restart: unless-stopped
 volumes:
   postgres_data:
+  auth_runtime:
 secrets:
   amap_env:
     file: .env.local

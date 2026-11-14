@@ -25,6 +25,7 @@ type Server struct {
 	Maps         *Maps
 	StaticDir    string
 	AllowPublish bool
+	Auth         *Auth
 }
 type RegionCount struct {
 	Code    string `json:"code"`
@@ -35,6 +36,9 @@ type RegionCount struct {
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	if s.Auth != nil {
+		s.Auth.Routes(mux)
+	}
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := s.Store.DB.PingContext(r.Context()); err != nil {
 			fail(w, 503, "数据库暂不可用")
@@ -192,6 +196,17 @@ func (s *Server) listings(w http.ResponseWriter, r *http.Request) {
 	if cookie, e := r.Cookie("atlas_session"); e == nil {
 		owner = cookie.Value
 	}
+	if s.Auth != nil {
+		user, authErr := s.Auth.Current(r)
+		if authErr != nil {
+			fail(w, 503, "账号服务暂不可用")
+			return
+		}
+		owner = ""
+		if user != nil {
+			owner = user.ID
+		}
+	}
 	selected := []Listing{}
 	counts := map[string]*RegionCount{}
 	cities := map[string]*RegionCount{}
@@ -334,6 +349,19 @@ func session(w http.ResponseWriter, r *http.Request) (string, error) {
 }
 
 func (s *Server) create(w http.ResponseWriter, r *http.Request) {
+	accountID := ""
+	if s.Auth != nil {
+		user, err := s.Auth.Current(r)
+		if err != nil {
+			fail(w, 503, "账号服务暂不可用")
+			return
+		}
+		if user == nil {
+			fail(w, 401, "请先登录后再发布房源")
+			return
+		}
+		accountID = user.ID
+	}
 	if !s.AllowPublish {
 		fail(w, 403, "当前部署未启用发布功能，请联系管理员")
 		return
@@ -436,6 +464,9 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	l.Owner = owner
+	if accountID != "" {
+		l.Owner = accountID
+	}
 	if err = s.Store.Insert(r.Context(), l); err != nil {
 		log.Printf("insert: %v", err)
 		fail(w, 500, "保存失败，请重试")

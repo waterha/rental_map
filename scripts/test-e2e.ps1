@@ -6,6 +6,7 @@ $previousData = $env:DATA_DIR
 $previousBase = $env:TEST_BASE_URL
 $previousPublish = $env:ALLOW_PUBLISH
 $previousDatabase = $env:DATABASE_URL
+$previousSmtpDisabled = $env:SMTP_DISABLED
 $testProcess = $null
 Push-Location -LiteralPath $projectDirectory
 try {
@@ -24,6 +25,8 @@ try {
   $env:TEST_BASE_URL = "http://127.0.0.1:$Port"
   $env:ALLOW_PUBLISH = 'true'
   $env:DATABASE_URL = ''
+  # The isolated browser suite must never send real emails or use the local SMTP credential.
+  $env:SMTP_DISABLED = 'true'
   $testProcess = Start-Process -FilePath $testBinary -WorkingDirectory $projectDirectory -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $testDirectory 'server.log') -RedirectStandardError (Join-Path $testDirectory 'server-error.log')
   $ready = $false
   for ($attempt=0; $attempt -lt 30; $attempt++) {
@@ -43,5 +46,6 @@ try {
   $env:TEST_BASE_URL = $previousBase
   $env:ALLOW_PUBLISH = $previousPublish
   $env:DATABASE_URL = $previousDatabase
+  $env:SMTP_DISABLED = $previousSmtpDisabled
   Pop-Location
 }

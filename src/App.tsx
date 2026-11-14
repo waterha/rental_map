@@ -5,6 +5,7 @@ import DistrictMap from './DistrictMap'
 import type { Listing, Marker, Region, Results } from './types'
 import { api, money, national } from './types'
 import { useMapCollection } from './map-data'
+import AccountPanel from './AccountPanel'
 
 const currentCode = () => new URLSearchParams(location.search).get('region') || national.code
 
@@ -88,6 +89,7 @@ export default function App() {
   const markers = pins.code === region.code ? pins.markers : []
 
   return <main className="atlas-fullscreen" aria-label="租房版图">
+    <AccountPanel />
     {ready && (isDistrict
       ? <DistrictMap key={region.code} region={region} feature={districtFeature} markers={markers} onListing={id => { void openListing(id) }} />
       : <MapView region={region} collection={collection} onNavigate={navigate} />)}
