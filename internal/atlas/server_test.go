@@ -125,7 +125,7 @@ func TestBadRequestsAndMissingResources(t *testing.T) {
 }
 
 func validListing() Listing {
-	return Listing{ListingDetails: ListingDetails{RentalSource: "房东直租", PropertyType: "住宅", Bathrooms: 1}, Longitude: 120.11, Latitude: 30.21, Title: "地铁旁南向精装两居室", Description: "采光通透，交通便利，周边生活配套完善，随时可以看房。", Type: "整租", Price: 3200, Area: 60, Rooms: 2, DistrictCode: "330106", Community: "阳光花园", Contact: "test@example.com", Tags: []string{"近地铁"}}
+	return Listing{ListingDetails: ListingDetails{RentalSource: "房东直租", PropertyType: "住宅", Bathrooms: 1}, Longitude: 120.11, Latitude: 30.21, Title: "地铁旁南向精装两居室", Description: "采光通透，交通便利，周边生活配套完善，随时可以看房。", Type: "整租", Price: 3200, Area: 60, Rooms: 2, DistrictCode: "330106", Contact: "test@example.com", Tags: []string{"近地铁"}}
 }
 func testPhoto() image.Image {
 	img := image.NewRGBA(image.Rect(0, 0, 4, 4))

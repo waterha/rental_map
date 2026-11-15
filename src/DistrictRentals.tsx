@@ -83,6 +83,14 @@ export default function DistrictRentals({ region, feature, publishing, onPublish
     }} />
     {publishing && selecting && <div className="publication-guide" role="status"><span>{pickError || `在${region.name}地图上点击，确认房源位置`}</span><button aria-label="取消发布" onClick={onPublishEnd}><X size={16} /></button></div>}
     {publishing && draft && <PublicationForm region={region} position={draft} hidden={selecting} onReselect={() => setSelecting(true)} onCancel={onPublishEnd} onPublished={published} onLoginRequired={onLoginRequired} />}
+    <section className="rental-legend" aria-label="房源颜色图例">
+      <p>房源类型</p>
+      <ul>
+        <li><i className="rental-legend-dot sublet" aria-hidden="true" /><span>转租</span><small>红色</small></li>
+        <li><i className="rental-legend-dot" aria-hidden="true" /><span>整租</span><small>紫色</small></li>
+        <li><i className="rental-legend-dot shared" aria-hidden="true" /><span>合租</span><small>黄色</small></li>
+      </ul>
+    </section>
     <div className="rental-controls">
       <div className="rental-types" role="group" aria-label="租房类型" aria-busy={loading}>
         {rentalTypes.map(value => <button key={value} aria-pressed={type === value} onClick={() => { if (value !== type) { closeListing(); setType(value) } }}>{value || '全部'}</button>)}

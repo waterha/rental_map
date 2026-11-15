@@ -407,7 +407,7 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 	l.Community = strings.TrimSpace(l.Community)
 	l.Contact = strings.TrimSpace(l.Contact)
 	if utf8.RuneCountInString(l.Title) < 5 || utf8.RuneCountInString(l.Title) > 60 {
-		fail(w, 400, "标题需为 5–60 个字")
+		fail(w, 400, "房源需为 5–60 个字")
 		return
 	}
 	if l.Type != "整租" && l.Type != "合租" && l.Type != "转租" {
@@ -422,8 +422,12 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, "房源描述需为 10–2000 个字")
 		return
 	}
-	if l.Community == "" || utf8.RuneCountInString(l.Community) > 60 || utf8.RuneCountInString(l.Contact) < 3 || utf8.RuneCountInString(l.Contact) > 100 {
-		fail(w, 400, "请填写小区和有效联系方式")
+	if utf8.RuneCountInString(l.Community) > 60 {
+		fail(w, 400, "小区名称过长")
+		return
+	}
+	if utf8.RuneCountInString(l.Contact) < 3 || utf8.RuneCountInString(l.Contact) > 100 {
+		fail(w, 400, "请填写有效联系方式")
 		return
 	}
 	district, ok := s.Maps.Get(l.DistrictCode)

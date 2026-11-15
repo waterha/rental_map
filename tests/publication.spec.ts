@@ -56,7 +56,7 @@ test('guest browsing stays public; plus requests login and resumes district loca
 
 test('publication preserves draft on retry and reselection, then adds a real point without reloading the map', async ({ page }) => {
   await setup(page)
-  const listing = { id: 'new-listing', title: '西湖阳光一房一卫住宅', community: '阳光花园', description: '交通方便采光良好，周边生活配套齐全', type: '转租', rentalSource: '个人转租', propertyType: '住宅', rooms: 1, halls: 0, bathrooms: 1, area: 45, price: 2800, contact: 'contact@example.com', city: '杭州市', district: '西湖区', longitude: 120.08362, latitude: 30.200766, isDemo: false, image: '/images/home-1.jpg', images: ['/images/home-1.jpg', '/images/home-2.jpg'] }
+  const listing = { id: 'new-listing', title: '西湖阳光一房一卫住宅', community: '', description: '交通方便采光良好，周边生活配套齐全', type: '转租', rentalSource: '个人转租', propertyType: '住宅', rooms: 1, halls: 0, bathrooms: 1, area: 45, price: 2800, contact: 'contact@example.com', city: '杭州市', district: '西湖区', longitude: 120.08362, latitude: 30.200766, isDemo: false, image: '/images/home-1.jpg', images: ['/images/home-1.jpg', '/images/home-2.jpg'] }
   let published = false, attempts = 0
   await page.route('**/api/auth/login', route => route.fulfill({ json: { user: { id: 'publisher', email: 'publisher@gmail.com' } } }))
   await page.route('**/api/listings?**', route => route.fulfill({ json: { markers: published ? [listing] : [], total: published ? 1 : 0 } }))
@@ -67,6 +67,7 @@ test('publication preserves draft on retry and reselection, then adds a real poi
     expect(body).toContain('name="photos"')
     expect(body).toContain('"longitude":120.08362')
     expect(body).toContain('"bathrooms":1')
+    expect(body).not.toContain('"community"')
     if (attempts === 1) return route.fulfill({ status: 401, json: { error: '登录已过期，请重新登录' } })
     published = true
     return route.fulfill({ status: 201, json: listing })
@@ -82,8 +83,8 @@ test('publication preserves draft on retry and reselection, then adds a real poi
   await page.locator('.district-map').click({ position: { x: 500, y: 400 } })
   const form = page.getByRole('dialog', { name: '发布房源资料' })
   await expect(page.locator('.draft-light')).toHaveCount(1)
-  await form.getByLabel('房源标题', { exact: true }).fill(listing.title)
-  await form.getByLabel('小区 / 公寓名称', { exact: true }).fill(listing.community)
+  await form.getByLabel('房源', { exact: true }).fill(listing.title)
+  await expect(form.locator('[name=community]')).toHaveCount(0)
   await form.getByLabel('出租类型', { exact: true }).selectOption('转租')
   await form.getByLabel('出租身份', { exact: true }).selectOption('个人转租')
   await form.getByLabel('月租（元）', { exact: true }).fill('2800')
@@ -99,7 +100,7 @@ test('publication preserves draft on retry and reselection, then adds a real poi
   await form.getByRole('button', { name: '重新选点' }).click()
   await expect(form).not.toBeVisible()
   await page.locator('.district-map').click({ position: { x: 500, y: 400 } })
-  await expect(form.getByLabel('房源标题', { exact: true })).toHaveValue(listing.title)
+  await expect(form.getByLabel('房源', { exact: true })).toHaveValue(listing.title)
   await expect(form.locator('.publication-photo')).toHaveCount(2)
   await page.setViewportSize({ width: 390, height: 844 })
   const bounds = await form.boundingBox()
@@ -123,6 +124,7 @@ test('publication preserves draft on retry and reselection, then adds a real poi
   await expect(form).toHaveCount(0)
   await expect(page.locator('[data-listing="new-listing"]')).toHaveCount(1)
   await expect(page.locator('.draft-light')).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: listing.title, exact: true })).toBeVisible()
   await expect(page.locator('.listing-contact')).toContainText(listing.contact)
   await expect(page.locator('.listing-facts')).toContainText('1 室 0 厅 1 卫')
   await page.getByRole('button', { name: '下一张照片' }).click()

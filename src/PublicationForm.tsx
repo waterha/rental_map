@@ -52,7 +52,7 @@ export default function PublicationForm({ region, position, hidden, onReselect, 
     if (photos.length < 1 || photos.length > 5) { setError('请上传 1–5 张房源照片'); return }
     const fields = new FormData(event.currentTarget)
     const listing = {
-      title: String(fields.get('title')).trim(), community: String(fields.get('community')).trim(),
+      title: String(fields.get('title')).trim(),
       description: String(fields.get('description')).trim(), contact: String(fields.get('contact')).trim(),
       type: fields.get('type'), rentalSource: fields.get('rentalSource'), propertyType: fields.get('propertyType'),
       price: Number(fields.get('price')), area: Number(fields.get('area')), rooms: Number(fields.get('rooms')),
@@ -85,8 +85,7 @@ export default function PublicationForm({ region, position, hidden, onReselect, 
             {photos.length < 5 && <label className="add-photo"><Plus size={23} /><span>添加照片</span><input aria-label="上传房源照片" type="file" accept="image/jpeg,image/png" multiple onChange={event => { addPhotos(event.target.files); event.target.value = '' }} /></label>}
           </div>
           <p className="publication-hint">JPEG / PNG，每张 ≤ 5 MB、≤ 1200 万像素。上传时移除照片定位信息。</p>
-          <label>房源标题<input name="title" placeholder="例如：西湖区近地铁阳光一居" required minLength={5} maxLength={60} /></label>
-          <label>小区 / 公寓名称<input name="community" placeholder="填写房源所在的小区或公寓" required maxLength={60} /></label>
+          <label>房源<input name="title" placeholder="例如：西湖区近地铁阳光一居" required minLength={5} maxLength={60} /></label>
           <div className="publication-grid"><label>出租类型<select aria-label="出租类型" name="type" defaultValue="整租"><option>整租</option><option>转租</option><option>合租</option></select></label><label>出租身份<select aria-label="出租身份" name="rentalSource" defaultValue="房东直租"><option>房东直租</option><option>个人转租</option><option>合租招室友</option></select></label></div>
           <div className="publication-grid"><label>月租（元）<input name="price" type="number" min={100} max={1000000} step={1} placeholder="3000" required /></label><label>面积（m²）<input name="area" type="number" min={5} max={2000} step="0.1" placeholder="45" required /></label></div>
           <div className="publication-layout"><label>卧室<input name="rooms" aria-label="卧室数" type="number" min={1} max={10} defaultValue={1} required /></label><label>客厅<input name="halls" aria-label="客厅数" type="number" min={0} max={10} defaultValue={0} required /></label><label>卫生间<input name="bathrooms" aria-label="卫生间数" type="number" min={1} max={10} defaultValue={1} required /></label><label>房屋类型<select aria-label="房屋类型" name="propertyType"><option>住宅</option><option>公寓</option><option>其他</option></select></label></div>
