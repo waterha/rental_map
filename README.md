@@ -93,7 +93,7 @@ docker compose up --build -d
 
 Compose 使用 BuildKit 的构建 secret 读取 `.env.local`，构建过程中不打印凭据；高德 Web JS 客户端配置按需包含在前端产物中。应用端口仅绑定本机，数据库采用持久卷且不暴露端口。当前环境没有 Docker，尚未执行容器集成验证。外部数据库应按实际部署配置 TLS。
 
-Go 通过进程环境读取 `ADDR`（默认 `127.0.0.1:8080`）、`DATA_DIR`（默认 `data`）、`STATIC_DIR`（默认 `dist`）、`DATABASE_URL`、`ALLOW_PUBLISH`；启动时额外读取 `.env.server.local`，不会读取 `.env`。当前界面不提供发布入口，发布 API 启用时要求登录。
+Go 通过进程环境读取 `ADDR`（默认 `127.0.0.1:8080`）、`DATA_DIR`（默认 `data`）、`STATIC_DIR`（默认 `dist`）、`DATABASE_URL`、`ALLOW_PUBLISH`；启动时额外读取 `.env.server.local`，不会读取 `.env`。左上角「+」提供发布入口；浏览房源无需登录，发布必须登录。对外部署需设置 `ALLOW_PUBLISH=true`。
 
 ## 验证
 
@@ -114,4 +114,13 @@ npm run test:e2e:isolated
 
 行政边界：[DataV.GeoAtlas](https://datav.aliyun.com/portal/school/atlas/area_selector)。常用城市边界已缓存，未缓存区域按需请求。部分地区暂无子级边界，不虚构下级行政区。区县街道底图：[高德地图 Web JS API](https://lbs.amap.com/api/javascript-api-v2/summary)。室内展示图片：[Unsplash](https://unsplash.com)。
 
-当前为本地体验版本，已实现邮箱验证账号。真实房源采集、发布审核、图片上传、地址核验尚未接入。正式公开地图和数据前需确认相应授权与适用要求。初版选型记录和本次地图改版说明见 [调研文档](docs/research.md)。
+当前为本地体验版本，已实现邮箱验证账号。已支持登录发布与图片上传；发布审核、房源真实性和地址核验尚未接入。正式公开地图和数据前需确认相应授权与适用要求。初版选型记录和本次地图改版说明见 [调研文档](docs/research.md)。
+
+
+## 用户发布房源
+
+点击左上角「+」，登录后进入房源所在区县，在街道地图中点击选定位置，填写资料并上传 1–5 张 JPEG / PNG 照片（每张最多 5 MB、1200 万像素）。照片支持左右滑动；信息包括出租类型、出租身份、住宅 / 公寓类型、室厅卫、面积、月租和联系方式。确认发布成功后才生成正式光点。列表筛选、发布和详情请求不会重建高德底图。
+
+服务端校验登录状态、同源请求、字段、照片内容及区县边界内的位置，不接受匿名发布。每个账号每小时最多发起 20 次发布请求。图片重新编码为 JPEG，去掉原文件名和 EXIF / GPS 信息；元数据与房源一同持久化。地图点位是用户自行提供，未经地址真实性核验。
+
+用户照片位于 `DATA_DIR/runtime/uploads`，已排除在 Git、Docker 构建上下文之外。Compose 的 `auth_runtime` 持久卷同时保存照片；备份数据库时应同步备份此目录。照片和联系方式在发布后可被所有访客查看，表单有公开提示。生产入口反向代理请允许至少 26 MB 请求体，适当调高上传超时；应用默认上传读取超时为 90 秒。

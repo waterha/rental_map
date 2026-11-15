@@ -57,7 +57,7 @@ func main() {
 		log.Fatal("地铁城市索引不存在或格式错误，请检查 data/metro/cities.json")
 	}
 	app := &atlas.Server{Store: store, Maps: maps, StaticDir: env("STATIC_DIR", "dist"), AllowPublish: publish, Auth: auth, Metro: metro}
-	server := &http.Server{Addr: addr, Handler: app.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 20 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
+	server := &http.Server{Addr: addr, Handler: app.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 90 * time.Second, WriteTimeout: 120 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, stop := context.WithTimeout(context.Background(), 8*time.Second)

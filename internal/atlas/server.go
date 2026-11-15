@@ -55,12 +55,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/listings", s.listings)
 	mux.HandleFunc("GET /api/listings/{id}", s.detail)
 	mux.HandleFunc("POST /api/listings", s.create)
+	mux.HandleFunc("GET /uploads/{name}", s.photo)
+	mux.HandleFunc("GET /uploads/", http.NotFound)
 	mux.HandleFunc("GET /api/session", func(w http.ResponseWriter, r *http.Request) {
-		_, err := session(w, r)
-		if err != nil {
-			fail(w, 500, "无法创建本地会话")
-			return
-		}
 		send(w, 200, map[string]bool{"publishing": s.AllowPublish})
 	})
 	mux.Handle("GET /images/", http.StripPrefix("/images/", http.FileServer(http.Dir(filepath.Join(s.Maps.Dir, "images")))))
@@ -335,61 +332,74 @@ func (s *Server) detail(w http.ResponseWriter, r *http.Request) {
 	fail(w, 404, "房源不存在或已下架")
 }
 
-func session(w http.ResponseWriter, r *http.Request) (string, error) {
-	if c, err := r.Cookie("atlas_session"); err == nil && len(c.Value) == 64 {
-		if _, err := hex.DecodeString(c.Value); err == nil {
-			return c.Value, nil
-		}
-	}
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	id := hex.EncodeToString(b)
-	http.SetCookie(w, &http.Cookie{Name: "atlas_session", Value: id, Path: "/", MaxAge: 60 * 60 * 24 * 365, HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: r.TLS != nil})
-	return id, nil
-}
-
 func (s *Server) create(w http.ResponseWriter, r *http.Request) {
-	accountID := ""
-	if s.Auth != nil {
-		user, err := s.Auth.Current(r)
-		if err != nil {
-			fail(w, 503, "账号服务暂不可用")
-			return
-		}
-		if user == nil {
-			fail(w, 401, "请先登录后再发布房源")
-			return
-		}
-		accountID = user.ID
+	if s.Auth == nil {
+		fail(w, 401, "请先登录后再发布房源")
+		return
 	}
+	user, err := s.Auth.Current(r)
+	if err != nil {
+		fail(w, 503, "账号服务暂不可用")
+		return
+	}
+	if user == nil {
+		fail(w, 401, "请先登录后再发布房源")
+		return
+	}
+	accountID := user.ID
 	if !s.AllowPublish {
 		fail(w, 403, "当前部署未启用发布功能，请联系管理员")
 		return
 	}
-	if origin := r.Header.Get("Origin"); origin != "" {
-		u, err := url.Parse(origin)
-		if err != nil || u.Host != r.Host {
-			fail(w, 403, "不允许跨站发布")
-			return
-		}
-	}
-	if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
-		fail(w, 415, "请使用 JSON 提交房源")
+	if !sameOrigin(w, r) {
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 32<<10)
+	if !s.Auth.rate(w, r, "publish:"+accountID, 20, 3600) {
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 26<<20)
 	defer r.Body.Close()
+	if !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data;") {
+		fail(w, 415, "请同时提交房源资料和 1–5 张照片")
+		return
+	}
+	if err := r.ParseMultipartForm(1 << 20); err != nil {
+		if r.MultipartForm != nil {
+			r.MultipartForm.RemoveAll()
+		}
+		fail(w, 400, "上传内容无效或超过 26 MB")
+		return
+	}
+	defer r.MultipartForm.RemoveAll()
+	if len(r.MultipartForm.Value["listing"]) != 1 || len(r.FormValue("listing")) > 32<<10 {
+		fail(w, 400, "房源资料无效或过大")
+		return
+	}
 	var l Listing
-	dec := json.NewDecoder(r.Body)
+	dec := json.NewDecoder(strings.NewReader(r.FormValue("listing")))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&l); err != nil {
-		fail(w, 400, "房源内容格式无效或过大")
+		fail(w, 400, "房源内容格式无效")
 		return
 	}
 	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		fail(w, 400, "请只提交一条房源")
+		return
+	}
+	if len(r.MultipartForm.File["photos"]) < 1 || len(r.MultipartForm.File["photos"]) > 5 {
+		fail(w, 400, "请上传 1–5 张房源照片")
+		return
+	}
+	if l.RentalSource != "房东直租" && l.RentalSource != "个人转租" && l.RentalSource != "合租招室友" {
+		fail(w, 400, "请选择出租身份")
+		return
+	}
+	if l.PropertyType != "住宅" && l.PropertyType != "公寓" && l.PropertyType != "其他" {
+		fail(w, 400, "请选择房屋类型")
+		return
+	}
+	if l.Halls < 0 || l.Halls > 10 || l.Bathrooms < 1 || l.Bathrooms > 10 {
+		fail(w, 400, "请填写有效厅数与卫生间数")
 		return
 	}
 	l.Title = strings.TrimSpace(l.Title)
@@ -435,8 +445,15 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 	l.City = city.Name
 	l.District = district.Name
 	l.Address = city.Name + district.Name + l.Community
-	l.Longitude = district.Center[0]
-	l.Latitude = district.Center[1]
+	inside, err := s.locationInDistrict(r.Context(), district, [2]float64{l.Longitude, l.Latitude})
+	if err != nil {
+		fail(w, 503, "区县边界暂不可用，请稍后重试")
+		return
+	}
+	if !inside {
+		fail(w, 400, "请在所选区县内点选房源位置")
+		return
+	}
 	if len(l.Tags) > 6 {
 		fail(w, 400, "房源标签最多 6 个")
 		return
@@ -451,7 +468,7 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, "楼层或朝向内容过长")
 		return
 	}
-	l.Image = "/images/home-1.jpg"
+
 	l.IsDemo = false
 	l.CreatedAt = time.Now().UTC().Format(time.RFC3339)
 	b := make([]byte, 16)
@@ -460,20 +477,26 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	l.ID = hex.EncodeToString(b)
-	owner, err := session(w, r)
+	l.Owner = accountID
+	images, err := s.savePhotos(r.MultipartForm.File["photos"])
 	if err != nil {
-		fail(w, 500, "无法创建本地会话")
+		fail(w, 400, err.Error())
 		return
 	}
-	l.Owner = owner
-	if accountID != "" {
-		l.Owner = accountID
-	}
+	l.Images = images
+	l.Image = images[0]
+	saved := false
+	defer func() {
+		if !saved {
+			s.removePhotos(images)
+		}
+	}()
 	if err = s.Store.Insert(r.Context(), l); err != nil {
 		log.Printf("insert: %v", err)
 		fail(w, 500, "保存失败，请重试")
 		return
 	}
+	saved = true
 	send(w, 201, l)
 }
 

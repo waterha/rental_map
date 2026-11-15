@@ -1,15 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
-import { LoaderCircle, RotateCcw } from 'lucide-react'
+import { LoaderCircle, RotateCcw, Plus, X } from 'lucide-react'
 import MapView from './MapView'
 import DistrictRentals from './DistrictRentals'
 import type { Region } from './types'
 import { api, national } from './types'
 import { useMapCollection } from './map-data'
 import AccountPanel from './AccountPanel'
+import type { Account } from './AccountPanel'
+import './publication.css'
 
 const currentCode = () => new URLSearchParams(location.search).get('region') || national.code
 
 export default function App() {
+  const [user, setUser] = useState<Account | null>(null)
+  const [wantsPublish, setWantsPublish] = useState(false)
+  const [publishing, setPublishing] = useState(false)
+  const [loginRequest, setLoginRequest] = useState(0)
+  const cancelPublication = useCallback(() => { setPublishing(false); setWantsPublish(false) }, [])
+  useEffect(() => { if (wantsPublish && user) setPublishing(true) }, [wantsPublish, user])
   const [regions, setRegions] = useState<Region[]>([national])
   const [region, setRegion] = useState(national)
   const [ready, setReady] = useState(false)
@@ -59,9 +67,11 @@ export default function App() {
   const districtFeature = collection?.features.find(feature => String(feature.properties.adcode) === region.code)
 
   return <main className="atlas-fullscreen" aria-label="租房版图">
-    <AccountPanel />
+    <AccountPanel onUserChange={setUser} loginRequest={loginRequest} onLoginCancel={cancelPublication} />
+    <button className="publish-trigger" aria-label="发布房源" title="发布房源" aria-pressed={publishing} onClick={() => { setWantsPublish(true); if (user) setPublishing(true); if (!user) setLoginRequest(value => value + 1) }}><Plus size={21} /></button>
+    {publishing && !isDistrict && <div className="publication-guide" role="status"><span>请选择房源所在的省、市、区县，再在街道地图上点选位置。</span><button onClick={cancelPublication} aria-label="取消发布"><X size={16} /></button></div>}
     {ready && (isDistrict
-      ? <DistrictRentals key={region.code} region={region} feature={districtFeature} />
+      ? <DistrictRentals key={region.code} region={region} feature={districtFeature} publishing={publishing} onPublishEnd={cancelPublication} onLoginRequired={() => setLoginRequest(value => value + 1)} />
       : <MapView region={region} collection={collection} onNavigate={navigate} />)}
     {ready && region.code !== national.code && <nav className="map-breadcrumbs" aria-label="当前行政区路径">{trail.map((item, index) => <span key={item.code}>{index > 0 && <i aria-hidden="true">/</i>}{index === trail.length - 1 ? <strong aria-current="location">{item.code === national.code ? '中国' : item.name}</strong> : <button onClick={() => navigate(item)}>{item.code === national.code ? '中国' : item.name}</button>}</span>)}</nav>}
     {(!ready || loading) && !error && !mapError && <div className="map-loading" role="status"><LoaderCircle size={20} className="spin" /><span>正在展开地图</span></div>}

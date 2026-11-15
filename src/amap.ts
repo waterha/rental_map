@@ -2,14 +2,15 @@
 export type Position = [number, number]
 export type Ring = Position[]
 export interface AMapOverlay { setMap(map: AMapInstance | null): void }
+export interface AMapEvent { message?: string; lnglat?: { lng: number; lat: number } }
 export interface AMapInstance {
   destroy(): void
   add(overlay: AMapOverlay | AMapOverlay[]): void
   remove(overlay: AMapOverlay | AMapOverlay[]): void
   setMask(mask: Ring[][]): void
   setFitView(overlays: AMapOverlay[], immediately: boolean, padding: number[], maxZoom?: number): void
-  on(event: string, handler: (event?: { message?: string }) => void): void
-  off(event: string, handler: (event?: { message?: string }) => void): void
+  on(event: string, handler: (event?: AMapEvent) => void): void
+  off(event: string, handler: (event?: AMapEvent) => void): void
   getZoom(): number
   setZoom(zoom: number, immediately?: boolean, duration?: number): void
   getCenter(): { lng: number; lat: number }

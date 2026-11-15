@@ -20,6 +20,7 @@ type Store struct {
 }
 
 type Listing struct {
+	ListingDetails
 	ID           string   `json:"id"`
 	Title        string   `json:"title"`
 	Description  string   `json:"description"`
@@ -44,6 +45,15 @@ type Listing struct {
 	CreatedAt    string   `json:"createdAt"`
 	IsDemo       bool     `json:"isDemo"`
 	Owner        string   `json:"-"`
+}
+
+// Separate metadata keeps upgrades compatible with existing SQLite and PostgreSQL databases.
+type ListingDetails struct {
+	Images       []string `json:"images,omitempty"`
+	RentalSource string   `json:"rentalSource,omitempty"`
+	PropertyType string   `json:"propertyType,omitempty"`
+	Halls        int      `json:"halls"`
+	Bathrooms    int      `json:"bathrooms"`
 }
 
 func OpenStore(ctx context.Context, directory, dsn string) (*Store, error) {
@@ -91,7 +101,10 @@ func OpenStore(ctx context.Context, directory, dsn string) (*Store, error) {
  CREATE INDEX IF NOT EXISTS idx_listings_city ON listings(city_code, type, price);
  CREATE INDEX IF NOT EXISTS idx_listings_district ON listings(district_code, type, price);
  CREATE INDEX IF NOT EXISTS idx_listings_created ON listings(created_at);
- CREATE INDEX IF NOT EXISTS idx_listings_owner ON listings(owner);`
+ CREATE INDEX IF NOT EXISTS idx_listings_owner ON listings(owner);
+ CREATE TABLE IF NOT EXISTS listing_details (
+ listing_id TEXT PRIMARY KEY REFERENCES listings(id) ON DELETE CASCADE, details TEXT NOT NULL
+ );`
 	if _, err = db.ExecContext(ctx, schema); err != nil {
 		db.Close()
 		return nil, err
@@ -126,13 +139,28 @@ func (s *Store) Insert(ctx context.Context, l Listing) error {
 	if l.IsDemo {
 		demo = 1
 	}
-	_, err := s.DB.ExecContext(ctx, s.bind(`INSERT INTO listings (id,title,description,type,price,area,rooms,floor,orientation,community,province_code,city_code,district_code,city,district,address,longitude,latitude,image,tags,contact,created_at,is_demo,owner) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`),
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	_, err = tx.ExecContext(ctx, s.bind(`INSERT INTO listings (id,title,description,type,price,area,rooms,floor,orientation,community,province_code,city_code,district_code,city,district,address,longitude,latitude,image,tags,contact,created_at,is_demo,owner) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`),
 		l.ID, l.Title, l.Description, l.Type, l.Price, l.Area, l.Rooms, l.Floor, l.Orientation, l.Community, l.ProvinceCode, l.CityCode, l.DistrictCode, l.City, l.District, l.Address, l.Longitude, l.Latitude, l.Image, string(tags), l.Contact, l.CreatedAt, demo, l.Owner)
-	return err
+	if err != nil {
+		return err
+	}
+	details, err := json.Marshal(l.ListingDetails)
+	if err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, s.bind("INSERT INTO listing_details(listing_id,details) VALUES(?,?)"), l.ID, string(details)); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *Store) All(ctx context.Context) ([]Listing, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT id,title,description,type,price,area,rooms,floor,orientation,community,province_code,city_code,district_code,city,district,address,longitude,latitude,image,tags,contact,created_at,is_demo,owner FROM listings ORDER BY created_at DESC, id ASC`)
+	rows, err := s.DB.QueryContext(ctx, `SELECT l.id,l.title,l.description,l.type,l.price,l.area,l.rooms,l.floor,l.orientation,l.community,l.province_code,l.city_code,l.district_code,l.city,l.district,l.address,l.longitude,l.latitude,l.image,l.tags,l.contact,l.created_at,l.is_demo,l.owner,COALESCE(d.details,'{}') FROM listings l LEFT JOIN listing_details d ON d.listing_id=l.id ORDER BY l.created_at DESC, l.id ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -140,13 +168,19 @@ func (s *Store) All(ctx context.Context) ([]Listing, error) {
 	listings := []Listing{}
 	for rows.Next() {
 		var l Listing
-		var tags string
+		var tags, details string
 		var demo int
-		if err = rows.Scan(&l.ID, &l.Title, &l.Description, &l.Type, &l.Price, &l.Area, &l.Rooms, &l.Floor, &l.Orientation, &l.Community, &l.ProvinceCode, &l.CityCode, &l.DistrictCode, &l.City, &l.District, &l.Address, &l.Longitude, &l.Latitude, &l.Image, &tags, &l.Contact, &l.CreatedAt, &demo, &l.Owner); err != nil {
+		if err = rows.Scan(&l.ID, &l.Title, &l.Description, &l.Type, &l.Price, &l.Area, &l.Rooms, &l.Floor, &l.Orientation, &l.Community, &l.ProvinceCode, &l.CityCode, &l.DistrictCode, &l.City, &l.District, &l.Address, &l.Longitude, &l.Latitude, &l.Image, &tags, &l.Contact, &l.CreatedAt, &demo, &l.Owner, &details); err != nil {
 			return nil, err
 		}
 		if err = json.Unmarshal([]byte(tags), &l.Tags); err != nil {
 			return nil, err
+		}
+		if err = json.Unmarshal([]byte(details), &l.ListingDetails); err != nil {
+			return nil, err
+		}
+		if len(l.Images) == 0 && l.Image != "" {
+			l.Images = []string{l.Image}
 		}
 		l.IsDemo = demo == 1
 		listings = append(listings, l)

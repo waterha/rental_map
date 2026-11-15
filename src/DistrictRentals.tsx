@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import DistrictMap from './DistrictMap'
+import PublicationForm from './PublicationForm'
+import type { Position } from './amap'
+import { X } from 'lucide-react'
 import ListingPopover from './ListingPopover'
 import type { MapFeature } from './map-data'
 import type { Listing, Marker, Region, Results } from './types'
@@ -14,7 +17,10 @@ type DetailResult = { id: string; listing: Listing | null; loading: boolean; err
 
 // This subtree owns rental requests. It never changes geography, map retry state
 // or the DistrictMap key, including when retrying a failed list or detail request.
-export default function DistrictRentals({ region, feature }: { region: Region; feature?: MapFeature }) {
+export default function DistrictRentals({ region, feature, publishing, onPublishEnd, onLoginRequired }: { region: Region; feature?: MapFeature; publishing: boolean; onPublishEnd: () => void; onLoginRequired: () => void }) {
+  const [draft, setDraft] = useState<Position | null>(null)
+  const [selecting, setSelecting] = useState(true)
+  const [pickError, setPickError] = useState('')
   const [type, setType] = useState<RentalType>('')
   const [attempt, setAttempt] = useState(0)
   const [pins, setPins] = useState<PinResult | null>(null)
@@ -59,8 +65,24 @@ export default function DistrictRentals({ region, feature }: { region: Region; f
   }, [])
   useEffect(() => () => { detailRequest.current?.abort(); detailRequest.current = null }, [])
 
+  useEffect(() => {
+    if (publishing) closeListing()
+    else { setDraft(null); setSelecting(true); setPickError('') }
+  }, [publishing, closeListing])
+
+  function published(listing: Listing) {
+    setType(''); setAttempt(value => value + 1); onPublishEnd()
+    closeListing()
+    setDetail({ id: listing.id, listing, loading: false, error: '' })
+  }
+
   return <>
-    <DistrictMap region={region} feature={feature} markers={result?.markers || noMarkers} onListing={openListing} />
+    <DistrictMap region={region} feature={feature} markers={result?.markers || noMarkers} onListing={openListing} selecting={publishing && selecting} draft={publishing ? draft : null} onPick={point => {
+      if (!point) { setPickError('请在当前区县边界内点选位置'); return }
+      setDraft(point); setSelecting(false); setPickError('')
+    }} />
+    {publishing && selecting && <div className="publication-guide" role="status"><span>{pickError || `在${region.name}地图上点击，确认房源位置`}</span><button aria-label="取消发布" onClick={onPublishEnd}><X size={16} /></button></div>}
+    {publishing && draft && <PublicationForm region={region} position={draft} hidden={selecting} onReselect={() => setSelecting(true)} onCancel={onPublishEnd} onPublished={published} onLoginRequired={onLoginRequired} />}
     <div className="rental-controls">
       <div className="rental-types" role="group" aria-label="租房类型" aria-busy={loading}>
         {rentalTypes.map(value => <button key={value} aria-pressed={type === value} onClick={() => { if (value !== type) { closeListing(); setType(value) } }}>{value || '全部'}</button>)}
@@ -69,6 +91,6 @@ export default function DistrictRentals({ region, feature }: { region: Region; f
         {loading ? '正在加载房源' : result?.error ? <>{result.error}<button onClick={() => setAttempt(value => value + 1)}>重试房源</button></> : result?.total ? `${result.total} 套${type || ''}房源` : `暂无${type || ''}房源`}
       </div>
     </div>
-    {detail && <ListingPopover listing={detail.listing} loading={detail.loading} error={detail.error} onClose={closeListing} onRetry={() => { void openListing(detail.id) }} />}
+    {detail && !publishing && <ListingPopover listing={detail.listing} loading={detail.loading} error={detail.error} onClose={closeListing} onRetry={() => { void openListing(detail.id) }} />}
   </>
 }

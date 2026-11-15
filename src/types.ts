@@ -26,6 +26,11 @@ export interface Listing {
   address: string
   longitude: number
   latitude: number
+  images?: string[]
+  rentalSource?: string
+  propertyType?: string
+  halls?: number
+  bathrooms?: number
   image: string
   tags: string[]
   contact: string

@@ -3,10 +3,10 @@ import type { FormEvent } from 'react'
 import { Check, LoaderCircle, LogOut, Mail, ShieldCheck, UserRound, X } from 'lucide-react'
 import { api } from './types'
 
-interface Account { id: string; email: string }
+export interface Account { id: string; email: string }
 interface AuthConfig { allowedDomains: string[]; codeExpiresIn: number; resendAfter: number; mailAvailable: boolean; passwordMinLength: number; passwordMaxBytes: number }
 
-export default function AccountPanel() {
+export default function AccountPanel({ onUserChange, loginRequest = 0, onLoginCancel }: { onUserChange: (user: Account | null) => void; loginRequest?: number; onLoginCancel: () => void }) {
   const [user, setUser] = useState<Account | null>(null)
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<'login' | 'register'>('register')
@@ -24,6 +24,8 @@ export default function AccountPanel() {
   const [verified, setVerified] = useState(false)
   const panel = useRef<HTMLDivElement>(null)
   const pending = useRef(false)
+  const loginFlow = useRef(false)
+  const dialogClose = useRef(() => {})
   const emailValue = useRef(email)
   emailValue.current = email
 
@@ -32,6 +34,11 @@ export default function AccountPanel() {
     api<{ user: Account | null }>('/api/auth/me', { signal: abort.signal }).then(result => setUser(result.user)).catch(() => {})
     return () => abort.abort()
   }, [])
+
+  useEffect(() => { onUserChange(user) }, [user, onUserChange])
+  useEffect(() => {
+    if (loginRequest) { loginFlow.current = true; setUser(null); setMode('login'); setOpen(true); setError(''); setNotice(''); setVerified(false) }
+  }, [loginRequest])
 
   async function loadConfig() {
     setConfigError(false)
@@ -45,7 +52,7 @@ export default function AccountPanel() {
     const previous = document.activeElement as HTMLElement | null
     panel.current?.focus()
     const keydown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !pending.current) { setOpen(false); setPassword(''); setCode('') }
+      if (event.key === 'Escape') dialogClose.current()
       if (event.key === 'Tab') {
         const elements = [...(panel.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),[tabindex="0"]') || [])].filter(element => element.getClientRects().length)
         const first = elements[0], last = elements.at(-1)
@@ -66,7 +73,8 @@ export default function AccountPanel() {
   const validPassword = password.length >= 10 && new TextEncoder().encode(password).length <= 72 && /[a-zA-Z]/.test(password) && /[0-9]/.test(password) && !/[\x00-\x1f\x7f]/.test(password)
   pending.current = sending || submitting
 
-  function close() { if (!pending.current) { setOpen(false); setPassword(''); setCode(''); setError(''); setNotice('') } }
+  function close() { if (!pending.current) { setOpen(false); if (loginFlow.current) { loginFlow.current = false; onLoginCancel() }; setPassword(''); setCode(''); setError(''); setNotice('') } }
+  dialogClose.current = close
   function switchMode(next: 'login' | 'register') { setMode(next); setError(''); setNotice(''); setPassword(''); setCode('') }
 
   async function requestCode() {
@@ -91,7 +99,7 @@ export default function AccountPanel() {
     setSubmitting(true)
     try {
       const result = await api<{ user: Account }>(`/api/auth/${mode}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mode === 'register' ? { email: normalizedEmail, password, code } : { email: normalizedEmail, password }) })
-      setUser(result.user); setPassword(''); setCode(''); setSent(null); setVerified(mode === 'register')
+      setUser(result.user); if (loginFlow.current) { loginFlow.current = false; setOpen(false) }; setPassword(''); setCode(''); setSent(null); setVerified(mode === 'register')
     } catch (error) { setError((error as Error).message) } finally { setSubmitting(false) }
   }
 

@@ -4,7 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"image"
+	"image/color"
+	"image/png"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -121,12 +125,44 @@ func TestBadRequestsAndMissingResources(t *testing.T) {
 }
 
 func validListing() Listing {
-	return Listing{Title: "地铁旁南向精装两居室", Description: "采光通透，交通便利，周边生活配套完善，随时可以看房。", Type: "整租", Price: 3200, Area: 60, Rooms: 2, DistrictCode: "330106", Community: "阳光花园", Contact: "test@example.com", Tags: []string{"近地铁"}}
+	return Listing{ListingDetails: ListingDetails{RentalSource: "房东直租", PropertyType: "住宅", Bathrooms: 1}, Longitude: 120.11, Latitude: 30.21, Title: "地铁旁南向精装两居室", Description: "采光通透，交通便利，周边生活配套完善，随时可以看房。", Type: "整租", Price: 3200, Area: 60, Rooms: 2, DistrictCode: "330106", Community: "阳光花园", Contact: "test@example.com", Tags: []string{"近地铁"}}
 }
+func testPhoto() image.Image {
+	img := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	img.Set(0, 0, color.RGBA{R: 50, G: 100, B: 150, A: 255})
+	return img
+}
+func publicationAccount(t *testing.T, s *Server) (http.Handler, *http.Cookie) {
+	t.Helper()
+	auth, err := NewAuth(context.Background(), s.Store, s.Maps.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mail := &capturedMail{codes: map[string]string{}}
+	auth.Mailer = mail
+	s.Auth = auth
+	h := s.Handler()
+	requireStatus(t, authPost(h, "/api/auth/code", codeBody("publisher@gmail.com")), 200)
+	registration := authPost(h, "/api/auth/register", registerBody("publisher@gmail.com", mail.code("publisher@gmail.com")))
+	requireStatus(t, registration, 201)
+	os.MkdirAll(filepath.Join(s.Maps.Dir, "maps"), 0700)
+	boundary := `{"type":"FeatureCollection","features":[{"properties":{"adcode":330106},"geometry":{"type":"Polygon","coordinates":[[[120,30],[120.4,30],[120.4,30.4],[120,30.4],[120,30]]]}}]}`
+	if err := os.WriteFile(filepath.Join(s.Maps.Dir, "maps", "330100.json"), []byte(boundary), 0600); err != nil {
+		t.Fatal(err)
+	}
+	return h, registration.Result().Cookies()[0]
+}
+
 func post(h http.Handler, l Listing, origin string, cookie *http.Cookie) *httptest.ResponseRecorder {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
 	data, _ := json.Marshal(l)
-	r := httptest.NewRequest("POST", "http://example.com/api/listings", bytes.NewReader(data))
-	r.Header.Set("Content-Type", "application/json")
+	_ = writer.WriteField("listing", string(data))
+	photo, _ := writer.CreateFormFile("photos", "private-original-name.png")
+	_ = png.Encode(photo, testPhoto())
+	writer.Close()
+	r := httptest.NewRequest("POST", "http://example.com/api/listings", &body)
+	r.Header.Set("Content-Type", writer.FormDataContentType())
 	if origin != "" {
 		r.Header.Set("Origin", origin)
 	}
@@ -139,8 +175,9 @@ func post(h http.Handler, l Listing, origin string, cookie *http.Cookie) *httpte
 }
 
 func TestPublishSessionAndPersistence(t *testing.T) {
-	s, h := testServer(t)
-	res := post(h, validListing(), "http://example.com", nil)
+	s, _ := testServer(t)
+	h, cookie := publicationAccount(t, s)
+	res := post(h, validListing(), "http://example.com", cookie)
 	if res.Code != 201 {
 		t.Fatalf("publish: %d %s", res.Code, res.Body.String())
 	}
@@ -151,12 +188,15 @@ func TestPublishSessionAndPersistence(t *testing.T) {
 	if l.IsDemo || l.ProvinceCode != "330000" || l.CityCode != "330100" || l.City != "杭州市" || l.ID == "" {
 		t.Fatalf("bad derived listing: %+v", l)
 	}
-	cookies := res.Result().Cookies()
-	if len(cookies) != 1 || !cookies[0].HttpOnly || cookies[0].SameSite != http.SameSiteStrictMode {
-		t.Fatal("missing secure local session cookie")
+	if l.Longitude != 120.11 || l.Latitude != 30.21 || len(l.Images) != 1 || l.Bathrooms != 1 || l.RentalSource != "房东直租" {
+		t.Fatal("selected location or publication details lost")
+	}
+	photo := get(t, h, l.Images[0])
+	if photo.Code != 200 || photo.Header().Get("Content-Type") != "image/jpeg" {
+		t.Fatal("uploaded photo not publicly served")
 	}
 	req := httptest.NewRequest("GET", "/api/listings?mine=true", nil)
-	req.AddCookie(cookies[0])
+	req.AddCookie(cookie)
 	mine := httptest.NewRecorder()
 	h.ServeHTTP(mine, req)
 	var payload struct {
@@ -181,26 +221,27 @@ func TestPublishSessionAndPersistence(t *testing.T) {
 }
 
 func TestPublicationValidationAndOrigin(t *testing.T) {
-	s, h := testServer(t)
-	if res := post(h, validListing(), "https://attacker.example", nil); res.Code != 403 {
+	s, _ := testServer(t)
+	h, cookie := publicationAccount(t, s)
+	if res := post(h, validListing(), "https://attacker.example", cookie); res.Code != 403 {
 		t.Fatalf("cross-origin post allowed: %d", res.Code)
 	}
 	for _, test := range []struct {
 		name   string
 		change func(*Listing)
 	}{
-		{"short title", func(l *Listing) { l.Title = "短" }}, {"invalid district", func(l *Listing) { l.DistrictCode = "330000" }}, {"negative price", func(l *Listing) { l.Price = -1 }}, {"invalid type", func(l *Listing) { l.Type = "其他" }}, {"short contact", func(l *Listing) { l.Contact = "a" }}, {"short description", func(l *Listing) { l.Description = "短" }},
+		{"outside district", func(l *Listing) { l.Longitude = 121 }}, {"missing source", func(l *Listing) { l.RentalSource = "" }}, {"bathrooms", func(l *Listing) { l.Bathrooms = 0 }}, {"short title", func(l *Listing) { l.Title = "短" }}, {"invalid district", func(l *Listing) { l.DistrictCode = "330000" }}, {"negative price", func(l *Listing) { l.Price = -1 }}, {"invalid type", func(l *Listing) { l.Type = "其他" }}, {"short contact", func(l *Listing) { l.Contact = "a" }}, {"short description", func(l *Listing) { l.Description = "短" }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			l := validListing()
 			test.change(&l)
-			if res := post(h, l, "", nil); res.Code != 400 {
+			if res := post(h, l, "", cookie); res.Code != 400 {
 				t.Fatalf("got %d: %s", res.Code, res.Body.String())
 			}
 		})
 	}
 	s.AllowPublish = false
-	if res := post(h, validListing(), "", nil); res.Code != 403 {
+	if res := post(h, validListing(), "", cookie); res.Code != 403 {
 		t.Fatalf("publishing switch ignored: %d", res.Code)
 	}
 }

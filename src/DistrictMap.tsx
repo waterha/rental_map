@@ -5,16 +5,19 @@ import type { Marker, Region } from './types'
 import type { MapFeature } from './map-data'
 import { normalizeWinding } from './map-data'
 import { loadAMap } from './amap'
-import type { AMapInstance, AMapOverlay, AMapSDK, Ring } from './amap'
+import type { AMapInstance, AMapOverlay, AMapSDK, Ring, Position } from './amap'
 import { MetroControl, useMetro } from './MetroLayer'
 import { clipMetroPath } from './metro-geometry'
 
-export default memo(function DistrictMap({ region, feature, markers, onListing }: { region: Region; feature?: MapFeature; markers: Marker[]; onListing: (id: string) => void }) {
+export default memo(function DistrictMap({ region, feature, markers, onListing, selecting = false, draft, onPick }: { region: Region; feature?: MapFeature; markers: Marker[]; onListing: (id: string) => void; selecting?: boolean; draft?: Position | null; onPick?: (position: Position | null) => void }) {
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<AMapInstance | null>(null)
   const sdkRef = useRef<AMapSDK | null>(null)
   const click = useRef(onListing)
   click.current = onListing
+  const picker = useRef({ selecting, onPick })
+  picker.current = { selecting, onPick }
+
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [error, setError] = useState('')
   const [retry, setRetry] = useState(0)
@@ -23,6 +26,9 @@ export default memo(function DistrictMap({ region, feature, markers, onListing }
   const [metroLines, setMetroLines] = useState(0)
   const [centerLng, centerLat] = region.center
   const normalizedFeature = useMemo(() => feature ? normalizeWinding({ type: 'FeatureCollection', features: [feature] }).features[0] : null, [feature])
+
+  const boundary = useRef(normalizedFeature)
+  boundary.current = normalizedFeature
 
   useEffect(() => {
     if (!container.current || !feature) return
@@ -67,6 +73,11 @@ export default memo(function DistrictMap({ region, feature, markers, onListing }
         container.current.dataset.center = `${center.lng.toFixed(6)},${center.lat.toFixed(6)}`
         container.current.dataset.metroLabels = String(map.getZoom() >= 14)
       }
+      map.on('click', event => {
+        if (!picker.current.selecting || !event?.lnglat || !boundary.current) return
+        const point: Position = [event.lnglat.lng, event.lnglat.lat]
+        picker.current.onPick?.(geoContains(boundary.current, point) ? point : null)
+      })
       map.on('zoomend', syncCamera); map.on('moveend', syncCamera); map.on('zoomchange', syncCamera)
       map.on('complete', () => {
         if (!disposed) { clearTimeout(timeout); syncCamera(); setStatus('ready') }
@@ -92,7 +103,7 @@ export default memo(function DistrictMap({ region, feature, markers, onListing }
       content.dataset.listing = marker.id
       content.title = `${marker.type} · ¥${marker.price}/月`
       content.innerHTML = '<span class="light-halo"></span><span class="light-core"></span>'
-      content.addEventListener('click', event => { event.stopPropagation(); click.current(marker.id) })
+      content.addEventListener('click', event => { event.stopPropagation(); if (!picker.current.selecting) click.current(marker.id) })
       content.addEventListener('pointerdown', event => event.stopPropagation())
       let position: [number, number] = [marker.longitude, marker.latitude]
       // Seed coordinates use administrative centers plus offsets, which may fall outside a narrow district.
@@ -138,8 +149,20 @@ export default memo(function DistrictMap({ region, feature, markers, onListing }
     return () => { if (mapRef.current === map && overlays.length) map.remove(overlays) }
   }, [metroEnabled, metro.network, status, feature])
 
+  useEffect(() => {
+    const map = mapRef.current, sdk = sdkRef.current
+    if (!map || !sdk || !draft || status !== 'ready') return
+    const content = document.createElement('span')
+    content.className = 'rental-light draft-light'
+    content.setAttribute('aria-label', '待发布房源位置')
+    content.innerHTML = '<span class="light-halo"></span><span class="light-core"></span>'
+    const marker = new sdk.Marker({ position: draft, content, offset: new sdk.Pixel(0, 0), anchor: 'center', zIndex: 400, title: '待发布位置' })
+    map.add(marker)
+    return () => { if (mapRef.current === map) map.remove(marker) }
+  }, [draft, status])
+
   return <div className="district-layer">
-    <div className="district-map" ref={container} aria-label={`${region.name}高德街道地图`} data-provider="amap" data-metro-enabled={metroEnabled} data-metro-lines={metroLines} />
+    <div className="district-map" ref={container} aria-label={`${region.name}高德街道地图`} data-provider="amap" data-selecting={selecting} data-metro-enabled={metroEnabled} data-metro-lines={metroLines} />
     <MetroControl enabled={metroEnabled} onToggle={() => setMetroEnabled(value => !value)} {...metro} />
     {status === 'loading' && feature && <div className="map-loading" role="status"><LoaderCircle size={20} className="spin" /><span>正在展开街道地图</span></div>}
     {status === 'error' && <div className="map-notice" role="alert"><p>{error}</p><button onClick={() => setRetry(value => value + 1)}><RotateCcw size={14} />重新加载</button></div>}
