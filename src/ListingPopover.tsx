@@ -10,10 +10,15 @@ export default function ListingPopover({ listing, loading, error, onClose, onRet
   close.current = onClose
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null
-    panel.current?.focus()
+    panel.current?.focus({ preventScroll: true })
     const keydown = (event: KeyboardEvent) => { if (event.key === 'Escape') close.current() }
     document.addEventListener('keydown', keydown)
-    return () => { document.removeEventListener('keydown', keydown); previous?.focus() }
+    return () => {
+      document.removeEventListener('keydown', keydown)
+      // The marker may have moved off screen while the detail was open. Native
+      // focus scrolling shifts AMap's canvas container without moving its camera.
+      if (previous?.isConnected) previous.focus({ preventScroll: true })
+    }
   }, [])
   return <section className="listing-popover" ref={panel} tabIndex={-1} role="dialog" aria-label="房源详情">
     <button className="close-listing" aria-label="关闭房源详情" onClick={onClose}><X size={18} /></button>

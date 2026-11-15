@@ -38,6 +38,58 @@ const markers = [
 const detail = { id: 'whole', title: '独立详情请求', type: '整租', community: '测试小区', city: '杭州市', district: '西湖区', rooms: 2, area: 60, price: 3000, description: '测试房源', image: '/images/home-1.jpg', isDemo: true }
 async function counts(page: Page) { return page.evaluate(() => (window as unknown as { mapCounts: Record<string, number> }).mapCounts) }
 
+for (const closeMethod of ['button', 'Escape'] as const) test(`closing a listing after panning with ${closeMethod} keeps the camera and map DOM in place`, async ({ page }) => {
+  test.setTimeout(90000)
+  await page.goto('/?region=330106')
+  const map = page.locator('.district-map')
+  const pin = page.locator('.rental-light').first()
+  await expect(pin).toBeVisible({ timeout: 55000 })
+  // Keep the original trigger focused so closing exercises native focus restoration.
+  await pin.focus()
+  await pin.click()
+  await expect(page.getByRole('dialog', { name: '房源详情' })).toBeVisible()
+  const canvas = await map.locator('canvas').first().elementHandle()
+  await page.mouse.move(650, 450)
+  await page.mouse.wheel(0, -650)
+  await expect.poll(async () => Number(await map.getAttribute('data-zoom'))).toBeGreaterThan(12)
+  for (let i = 0; i < 2; i++) {
+    const center = await map.getAttribute('data-center')
+    await page.mouse.move(110, 450)
+    await page.mouse.down()
+    await page.mouse.move(1000, 650, { steps: 25 })
+    await page.mouse.up()
+    await expect(map).not.toHaveAttribute('data-center', center!)
+  }
+  await expect.poll(async () => {
+    const bounds = await pin.boundingBox()
+    return bounds ? bounds.x < 0 || bounds.y > 1080 || bounds.x > 1512 || bounds.y < 0 : false
+  }).toBe(true)
+  const snapshot = () => map.evaluate(element => ({
+    center: element.getAttribute('data-center'), zoom: element.getAttribute('data-zoom'),
+    ancestors: [...document.querySelectorAll('.district-map,.district-map *,.district-layer,main,body,html')]
+      .filter(node => node instanceof HTMLElement && (node.scrollLeft || node.scrollTop))
+      .map(node => ({ className: node.className, left: node.scrollLeft, top: node.scrollTop })),
+    canvas: [...element.querySelectorAll('canvas')].map(node => {
+      const box = node.getBoundingClientRect()
+      return { x: box.x, y: box.y, width: box.width, height: box.height }
+    }),
+  }))
+  let lastCenter = '', stable = 0
+  await expect.poll(async () => {
+    const center = await map.getAttribute('data-center')
+    stable = center === lastCenter ? stable + 1 : 0
+    lastCenter = center || ''
+    return stable
+  }, { intervals: [150] }).toBeGreaterThanOrEqual(4)
+  const before = await snapshot()
+  if (closeMethod === 'button') await page.getByRole('button', { name: '关闭房源详情', exact: true }).click()
+  else await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: '房源详情' })).toHaveCount(0)
+  await expect(pin).toBeFocused()
+  expect(await snapshot()).toEqual(before)
+  expect(await canvas!.evaluate(element => element.isConnected)).toBe(true)
+})
+
 test('list filters and list/detail retries never reload geography or the base map', async ({ page }) => {
   await instrumentMap(page)
   let failList = false, failDetail = true, listRequests = 0, detailRequests = 0, geographyRequests = 0
