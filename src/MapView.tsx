@@ -8,7 +8,7 @@ import { loadNationalMap } from './national-map'
 interface View { x: number; y: number; k: number }
 const initialView: View = { x: 0, y: 0, k: 1 }
 
-export default function MapView({ region, collection, onNavigate }: { region: Region; collection: MapCollection | null; onNavigate: (region: Region) => void }) {
+export default function MapView({ region, collection, onNavigate, selectedCodes }: { region: Region; collection: MapCollection | null; onNavigate: (region: Region) => void; selectedCodes?: string[] }) {
   const host = useRef<HTMLDivElement>(null)
   const svg = useRef<SVGSVGElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
@@ -100,7 +100,7 @@ export default function MapView({ region, collection, onNavigate }: { region: Re
   }
   const labelOffsets: Record<string, [number, number]> = country ? { '110000': [-2, -11], '120000': [17, 7], '310000': [22, 0], '810000': [23, 13], '820000': [-20, 13], '460000': [0, 7], '320000': [-2, -5], '330000': [5, 8] } : {}
   const fontSize = Math.max(10, Math.min(15, size.width / 95)) / view.k
-  return <div className={`administrative-map ${dragging ? 'is-dragging' : ''}`} ref={host}>
+  return <div className={`administrative-map ${dragging ? 'is-dragging' : ''} ${selectedCodes ? 'merge-map' : ''}`} ref={host}>
     <svg ref={svg} className="atlas-svg" viewBox={`0 0 ${size.width} ${size.height}`} role="group" aria-label={`${region.name}行政区地图`}
       onPointerDown={event => {
         if (event.button !== 0 || !event.isPrimary) return
@@ -135,9 +135,10 @@ export default function MapView({ region, collection, onNavigate }: { region: Re
         <g filter="url(#boundary-glow)" opacity=".33" pointerEvents="none">{country ? <path d={boundaryPath} stroke="#34c4ec" strokeWidth="1.2" fill="none" vectorEffect="non-scaling-stroke" /> : shapes.map(({ d }, index) => <path key={index} d={d} stroke="#34c4ec" strokeWidth="1.2" fill="none" vectorEffect="non-scaling-stroke" />)}</g>
         {shapes.map(({ feature, d }, index) => {
           const code = String(feature.properties.adcode), interactive = /^\d{6}$/.test(code) && region.hasChildren
-          return <path key={code} d={d} data-region={code} className={interactive ? 'region-shape' : 'boundary-line'} fill={hovered === code ? 'url(#hover-fill)' : index % 4 === 0 ? '#143448' : 'url(#province-fill)'}
+          return <path key={code} d={d} data-region={code} className={interactive ? `region-shape ${selectedCodes?.includes(code) ? 'is-selected' : ''}` : 'boundary-line'} fill={hovered === code ? 'url(#hover-fill)' : index % 4 === 0 ? '#143448' : 'url(#province-fill)'}
             stroke={hovered === code ? '#7ce9ff' : country ? 'none' : '#2a718f'} strokeWidth={hovered === code ? 1.6 : .85} vectorEffect="non-scaling-stroke"
-            role={interactive ? 'button' : undefined} tabIndex={interactive ? 0 : undefined} aria-label={interactive ? `进入${feature.properties.name}` : undefined}
+            role={interactive ? 'button' : undefined} tabIndex={interactive ? 0 : undefined} aria-label={interactive ? `${selectedCodes ? '选择' : '进入'}${feature.properties.name}` : undefined}
+            aria-pressed={interactive && selectedCodes ? selectedCodes.includes(code) : undefined}
             onMouseEnter={() => !drag.current && setHovered(code)} onMouseLeave={() => setHovered('')}
             onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); enter(feature) } }} />
         })}
@@ -148,7 +149,7 @@ export default function MapView({ region, collection, onNavigate }: { region: Re
           const point = projection(center); if (!point) return null
           const code = String(feature.properties.adcode), offset = labelOffsets[code] || [0, 0]
           const name = country ? feature.properties.name.replace(/壮族自治区|回族自治区|维吾尔自治区|特别行政区|自治区|省|市$/g, '') : feature.properties.name
-          return <text key={code} x={point[0] + offset[0] / view.k} y={point[1] + offset[1] / view.k} fontSize={fontSize} strokeWidth={3 / view.k} className={hovered === code ? 'label-active' : ''}>{name}</text>
+          return <text key={code} x={point[0] + offset[0] / view.k} y={point[1] + offset[1] / view.k} fontSize={fontSize} strokeWidth={3 / view.k} className={`${hovered === code ? 'label-active' : ''} ${selectedCodes?.includes(code) ? 'label-selected' : ''}`}>{name}</text>
         })}</g>
       </g>
       {country && data && <g className="south-sea" pointerEvents="none" aria-label="南海诸岛"><rect x={inset.left} y={inset.top} width={inset.width} height={inset.height} rx="3" /><g clipPath="url(#sea-inset)">{insetShapes.map((d, index) => <path key={index} d={d} fill="#102b3d" stroke="#397791" strokeWidth=".7" />)}</g><text x={inset.left + inset.width / 2} y={inset.top + inset.height - 8} textAnchor="middle">南海诸岛</text></g>}

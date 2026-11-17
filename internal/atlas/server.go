@@ -140,6 +140,10 @@ func parseBound(q url.Values, key string) (int, error) {
 
 func (s *Server) listings(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+	if err := s.validateDistrictMerge(q); err != nil {
+		fail(w, 400, err.Error())
+		return
+	}
 	min, err := parseBound(q, "minPrice")
 	if err != nil {
 		fail(w, 400, err.Error())

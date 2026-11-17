@@ -17,7 +17,7 @@ type DetailResult = { id: string; listing: Listing | null; loading: boolean; err
 
 // This subtree owns rental requests. It never changes geography, map retry state
 // or the DistrictMap key, including when retrying a failed list or detail request.
-export default function DistrictRentals({ region, feature, publishing, onPublishEnd, onLoginRequired }: { region: Region; feature?: MapFeature; publishing: boolean; onPublishEnd: () => void; onLoginRequired: () => void }) {
+export default function DistrictRentals({ region, feature, districts, publishing, onPublishEnd, onLoginRequired }: { region: Region; feature?: MapFeature; districts?: string[]; publishing: boolean; onPublishEnd: () => void; onLoginRequired: () => void }) {
   const [draft, setDraft] = useState<Position | null>(null)
   const [selecting, setSelecting] = useState(true)
   const [pickError, setPickError] = useState('')
@@ -26,7 +26,7 @@ export default function DistrictRentals({ region, feature, publishing, onPublish
   const [pins, setPins] = useState<PinResult | null>(null)
   const [detail, setDetail] = useState<DetailResult | null>(null)
   const detailRequest = useRef<AbortController | null>(null)
-  const params = new URLSearchParams({ region: region.code })
+  const params = districts ? new URLSearchParams({ districts: districts.join(',') }) : new URLSearchParams({ region: region.code })
   if (type) params.set('type', type)
   const requestKey = params.toString()
   const loading = pins?.key !== requestKey

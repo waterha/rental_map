@@ -93,6 +93,18 @@ func (s *Store) Search(ctx context.Context, q url.Values, owner string, minPrice
 			add("l.owner=?", owner)
 		}
 	}
+	districts, err := districtCodes(q)
+	if err != nil {
+		return result, err
+	}
+	if len(districts) > 0 {
+		binds := make([]string, len(districts))
+		districtArgs := make([]any, len(districts))
+		for i, code := range districts {
+			binds[i], districtArgs[i] = "?", code
+		}
+		add("l.district_code IN ("+strings.Join(binds, ",")+")", districtArgs...)
+	}
 	baseWhere := " WHERE " + strings.Join(conditions, " AND ")
 	baseArgs := append([]any(nil), args...)
 	if region := q.Get("region"); region != "" && region != "100000" {
