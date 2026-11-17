@@ -26,23 +26,38 @@ func (s *Server) photo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "public, max-age=86400")
-	http.ServeFile(w, r, filepath.Join(s.Maps.Dir, "runtime", "uploads", name))
+	servePublicFile(w, r, filepath.Join(s.Maps.Dir, "runtime", "uploads"), name)
 }
 
 func (s *Server) removePhotos(paths []string) {
 	for _, path := range paths {
 		name := strings.TrimPrefix(path, "/uploads/")
 		if photoName.MatchString(name) {
-			_ = os.Remove(filepath.Join(s.Maps.Dir, "runtime", "uploads", name))
+			file := filepath.Join(s.Maps.Dir, "runtime", "uploads", name)
+			if info, err := os.Stat(file); err == nil {
+				if os.Remove(file) == nil && s.photos != nil {
+					s.photos.release(info.Size())
+				}
+			}
 		}
 	}
 }
 
 // Decode then encode only pixels: original names, EXIF/GPS and other metadata never survive.
 func (s *Server) savePhotos(files []*multipart.FileHeader) (paths []string, err error) {
+	reservation := int64(len(files)) * (5 << 20)
+	if s.photos == nil || !s.photos.reserve(reservation) {
+		return nil, errors.New("照片存储额度不足，请联系管理员")
+	}
+	var encoded int64
 	defer func() {
 		if err != nil {
-			s.removePhotos(paths)
+			for _, path := range paths {
+				_ = os.Remove(filepath.Join(s.Maps.Dir, "runtime", "uploads", strings.TrimPrefix(path, "/uploads/")))
+			}
+			s.photos.release(reservation)
+		} else {
+			s.photos.release(reservation - encoded)
 		}
 	}()
 	directory := filepath.Join(s.Maps.Dir, "runtime", "uploads")
@@ -81,7 +96,10 @@ func (s *Server) savePhotos(files []*multipart.FileHeader) (paths []string, err 
 			return paths, errors.New("照片存储暂不可用")
 		}
 		paths = append(paths, "/uploads/"+name)
-		e = jpeg.Encode(output, pixels, &jpeg.Options{Quality: 85})
+		e = jpeg.Encode(&cappedImageWriter{file: output, remaining: 5 << 20}, pixels, &jpeg.Options{Quality: 85})
+		if info, statErr := output.Stat(); statErr == nil {
+			encoded += info.Size()
+		}
 		closeErr := output.Close()
 		if e != nil || closeErr != nil {
 			return paths, errors.New("无法保存照片")

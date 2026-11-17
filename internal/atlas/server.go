@@ -2,18 +2,16 @@ package atlas
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -21,6 +19,8 @@ import (
 )
 
 type Server struct {
+	photos       *photoBudget
+	Security     *Security
 	Store        *Store
 	Maps         *Maps
 	StaticDir    string
@@ -45,7 +45,7 @@ func (s *Server) Handler() http.Handler {
 			fail(w, 503, "数据库暂不可用")
 			return
 		}
-		send(w, 200, map[string]any{"status": "ok", "database": map[bool]string{true: "postgresql", false: "sqlite"}[s.Store.Postgres], "publishing": s.AllowPublish})
+		send(w, 200, map[string]any{"status": "ok", "publishing": s.AllowPublish})
 	})
 	mux.HandleFunc("GET /api/regions", func(w http.ResponseWriter, r *http.Request) {
 		send(w, 200, s.Maps.List(strings.TrimSpace(r.URL.Query().Get("q"))))
@@ -60,25 +60,30 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/session", func(w http.ResponseWriter, r *http.Request) {
 		send(w, 200, map[string]bool{"publishing": s.AllowPublish})
 	})
-	mux.Handle("GET /images/", http.StripPrefix("/images/", http.FileServer(http.Dir(filepath.Join(s.Maps.Dir, "images")))))
+	mux.HandleFunc("GET /images/{name}", func(w http.ResponseWriter, r *http.Request) {
+		servePublicFile(w, r, filepath.Join(s.Maps.Dir, "images"), r.PathValue("name"))
+	})
+	mux.HandleFunc("GET /images/", http.NotFound)
 	mux.HandleFunc("GET /api/", func(w http.ResponseWriter, r *http.Request) { fail(w, 404, "接口不存在") })
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		path := filepath.Join(s.StaticDir, filepath.Clean("/"+r.URL.Path))
-		if info, err := os.Stat(path); err == nil && !info.IsDir() {
-			http.ServeFile(w, r, path)
-			return
+		requested := strings.TrimPrefix(r.URL.Path, "/")
+		if requested == "" {
+			requested = "index.html"
 		}
-		if filepath.Ext(r.URL.Path) != "" {
+		if requested != "index.html" && requested != "favicon.svg" && !strings.HasPrefix(requested, "assets/") {
 			http.NotFound(w, r)
 			return
 		}
-		if _, err := os.Stat(filepath.Join(s.StaticDir, "index.html")); err != nil {
-			http.Error(w, "请先执行 npm run build，或访问前端开发服务 http://127.0.0.1:5173", 503)
-			return
-		}
-		http.ServeFile(w, r, filepath.Join(s.StaticDir, "index.html"))
+		servePublicFile(w, r, s.StaticDir, requested)
 	})
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	guard := s.Security
+	if guard == nil {
+		guard = NewSecurity()
+	}
+	if s.photos == nil {
+		s.photos = newPhotoBudget(s.Maps.Dir, guard.StorageBytes)
+	}
+	return guard.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		w.Header().Set("X-Frame-Options", "DENY")
@@ -87,12 +92,12 @@ func (s *Server) Handler() http.Handler {
 		}
 		defer func() {
 			if p := recover(); p != nil {
-				log.Printf("request panic: %v", p)
+				log.Print("request panic recovered")
 				fail(w, 500, "服务暂时不可用")
 			}
 		}()
 		mux.ServeHTTP(w, r)
-	})
+	}))
 }
 
 func (s *Server) mapData(w http.ResponseWriter, r *http.Request) {
@@ -179,157 +184,61 @@ func (s *Server) listings(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, "关键词过长")
 		return
 	}
-	records, err := s.Store.All(r.Context())
-	if err != nil {
-		log.Printf("listings: %v", err)
-		fail(w, 500, "房源加载失败")
+	sortMode := q.Get("sort")
+	orders := map[string]string{"": "l.created_at DESC,l.id ASC", "newest": "l.created_at DESC,l.id ASC", "price-asc": "l.price ASC,l.id ASC", "price-desc": "l.price DESC,l.id ASC", "area-desc": "l.area DESC,l.id ASC"}
+	order, ok := orders[sortMode]
+	if !ok {
+		fail(w, 400, "排序方式无效")
 		return
 	}
-	idSet := map[string]bool{}
-	if raw, ok := q["ids"]; ok {
-		for _, id := range strings.Split(strings.Join(raw, ","), ",") {
-			idSet[id] = true
-		}
+	if utf8.RuneCountInString(q.Get("tag")) > 12 || len(strings.Join(q["ids"], ",")) > 10000 {
+		fail(w, 400, "筛选条件过长")
+		return
 	}
 	owner := ""
-	if cookie, e := r.Cookie("atlas_session"); e == nil {
-		owner = cookie.Value
-	}
-	if s.Auth != nil {
-		user, authErr := s.Auth.Current(r)
-		if authErr != nil {
+	if q.Get("mine") == "true" && s.Auth != nil {
+		user, err := s.Auth.Current(r)
+		if err != nil {
 			fail(w, 503, "账号服务暂不可用")
 			return
 		}
-		owner = ""
 		if user != nil {
 			owner = user.ID
 		}
 	}
-	selected := []Listing{}
-	counts := map[string]*RegionCount{}
-	cities := map[string]*RegionCount{}
-	totalPrice := 0
-	types := map[string]int{"整租": 0, "合租": 0, "转租": 0}
-	prices := []int{}
-	for _, l := range records {
-		if kind != "" && l.Type != kind || l.Price < min || max > 0 && l.Price > max || rooms > 0 && (rooms < 3 && l.Rooms != rooms || rooms >= 3 && l.Rooms < 3) {
-			continue
-		}
-		if keyword != "" && !containsFold(l.Title+" "+l.Community+" "+l.City+" "+l.District+" "+strings.Join(l.Tags, " "), keyword) {
-			continue
-		}
-		if tag := q.Get("tag"); tag != "" && !containsFold(strings.Join(l.Tags, ","), tag) {
-			continue
-		}
-		if _, ok := q["ids"]; ok && !idSet[l.ID] {
-			continue
-		}
-		if q.Get("mine") == "true" && (owner == "" || l.Owner != owner) {
-			continue
-		}
-		if c := cities[l.CityCode]; c != nil {
-			c.Count++
-			c.Average += l.Price
-		} else {
-			cities[l.CityCode] = &RegionCount{Code: l.CityCode, Name: l.City, Count: 1, Average: l.Price}
-		}
-		if region != "" && region != "100000" && l.ProvinceCode != region && l.CityCode != region && l.DistrictCode != region {
-			continue
-		}
-		selected = append(selected, l)
-		totalPrice += l.Price
-		prices = append(prices, l.Price)
-		types[l.Type]++
-		seenCodes := map[string]bool{}
-		for _, code := range []string{l.ProvinceCode, l.CityCode, l.DistrictCode} {
-			if seenCodes[code] {
-				continue
-			}
-			seenCodes[code] = true
-			if c := counts[code]; c != nil {
-				c.Count++
-				c.Average += l.Price
-			} else {
-				r, _ := s.Maps.Get(code)
-				counts[code] = &RegionCount{Code: code, Name: r.Name, Count: 1, Average: l.Price}
-			}
-		}
-	}
-	sortMode := q.Get("sort")
-	if sortMode != "" && sortMode != "newest" && sortMode != "price-asc" && sortMode != "price-desc" && sortMode != "area-desc" {
-		fail(w, 400, "排序方式无效")
+	result, err := s.Store.Search(r.Context(), q, owner, min, max, rooms, page, order)
+	if errors.Is(err, errTooManyIDs) {
+		fail(w, 400, "一次最多查询 150 条房源")
 		return
 	}
-	sort.SliceStable(selected, func(i, j int) bool {
-		a, b := selected[i], selected[j]
-		switch sortMode {
-		case "price-asc":
-			return a.Price < b.Price
-		case "price-desc":
-			return a.Price > b.Price
-		case "area-desc":
-			return a.Area > b.Area
-		default:
-			return a.CreatedAt > b.CreatedAt
-		}
-	})
-	regionCounts := []RegionCount{}
-	for _, c := range counts {
-		c.Average /= c.Count
-		regionCounts = append(regionCounts, *c)
+	if err != nil {
+		fail(w, 503, "房源加载失败，请稍后重试")
+		return
 	}
-	sort.Slice(regionCounts, func(i, j int) bool { return regionCounts[i].Code < regionCounts[j].Code })
-	hot := []RegionCount{}
-	for _, c := range cities {
-		c.Average /= c.Count
-		hot = append(hot, *c)
-	}
-	sort.Slice(hot, func(i, j int) bool {
-		if hot[i].Count == hot[j].Count {
-			return hot[i].Code < hot[j].Code
-		}
-		return hot[i].Count > hot[j].Count
-	})
-	if len(hot) > 6 {
-		hot = hot[:6]
-	}
-	total := len(selected)
-	avg := 0
-	median := 0
-	if total > 0 {
-		avg = totalPrice / total
-		sort.Ints(prices)
-		median = prices[total/2]
-		if total%2 == 0 {
-			median = (prices[total/2-1] + prices[total/2]) / 2
+	for i := range result.Regions {
+		if region, ok := s.Maps.Get(result.Regions[i].Code); ok {
+			result.Regions[i].Name = region.Name
 		}
 	}
-	markers := []map[string]any{}
-	for i, l := range selected {
-		if i >= 150 {
-			break
-		}
-		markers = append(markers, map[string]any{"id": l.ID, "longitude": l.Longitude, "latitude": l.Latitude, "price": l.Price, "type": l.Type, "isDemo": l.IsDemo})
-	}
-	start := int(math.Min(float64((page-1)*9), float64(total)))
-	end := minInt(start+9, total)
-	send(w, 200, map[string]any{"items": selected[start:end], "total": total, "page": page, "pageSize": 9, "average": avg, "median": median, "types": types, "regions": regionCounts, "cities": hot, "markers": markers, "demo": true})
+	send(w, 200, result)
 }
 
 func (s *Server) detail(w http.ResponseWriter, r *http.Request) {
-	records, err := s.Store.All(r.Context())
-	if err != nil {
-		fail(w, 500, "房源加载失败")
+	id := r.PathValue("id")
+	if len(id) > 64 {
+		fail(w, 404, "房源不存在或已下架")
 		return
 	}
-	for _, l := range records {
-		if l.ID == r.PathValue("id") {
-			send(w, 200, l)
-			return
-		}
+	listing, err := s.Store.Find(r.Context(), id)
+	if errors.Is(err, sql.ErrNoRows) {
+		fail(w, 404, "房源不存在或已下架")
+		return
 	}
-	fail(w, 404, "房源不存在或已下架")
+	if err != nil {
+		fail(w, 503, "房源加载失败")
+		return
+	}
+	send(w, 200, listing)
 }
 
 func (s *Server) create(w http.ResponseWriter, r *http.Request) {

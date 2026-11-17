@@ -85,6 +85,7 @@ func TestMetroFetchCoalescesAndCaches(t *testing.T) {
 func TestMetroOfflineFallbackAndInvalidUpstream(t *testing.T) {
 	m := testMetro(t)
 	for _, body := range []string{`{}`, strings.ReplaceAll(metroFixture, "120.163859,30.279887", "NaN,30"), strings.ReplaceAll(metroFixture, "120.163859,30.279887", "bad")} {
+		m.cache = map[string]metroEntry{}
 		m.client.Transport = metroTransport(func(*http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body))}, nil
 		})
@@ -92,6 +93,7 @@ func TestMetroOfflineFallbackAndInvalidUpstream(t *testing.T) {
 			t.Fatal("accepted malformed source")
 		}
 	}
+	m.cache = map[string]metroEntry{}
 	m.client.Transport = metroTransport(func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(metroFixture))}, nil
 	})

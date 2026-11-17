@@ -54,6 +54,7 @@ type metroCity struct {
 type metroEntry struct {
 	data  MetroNetwork
 	until time.Time
+	err   error
 }
 type Metro struct {
 	dir    string
@@ -91,7 +92,7 @@ func (m *Metro) Read(ctx context.Context, code string) (MetroNetwork, error) {
 		m.mu.Lock()
 		if entry, ok := m.cache[code]; ok && time.Now().Before(entry.until) {
 			m.mu.Unlock()
-			return entry.data, nil
+			return entry.data, entry.err
 		}
 		if done, ok := m.busy[code]; ok {
 			m.mu.Unlock()
@@ -113,6 +114,9 @@ func (m *Metro) Read(ctx context.Context, code string) (MetroNetwork, error) {
 				ttl = 5 * time.Minute
 			}
 			m.cache[code] = metroEntry{data: data, until: time.Now().Add(ttl)}
+		} else {
+			// Bound retries during an upstream outage, including queued waiters.
+			m.cache[code] = metroEntry{err: errors.New("metro upstream is cooling down"), until: time.Now().Add(30 * time.Second)}
 		}
 		delete(m.busy, code)
 		close(done)

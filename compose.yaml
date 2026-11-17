@@ -3,12 +3,14 @@ services:
     image: postgres:17-alpine
     environment:
       POSTGRES_DB: rental_atlas
-      POSTGRES_USER: atlas
+      POSTGRES_USER: postgres
+      RENTAL_DB_PASSWORD: ${RENTAL_DB_PASSWORD:?Set a separate password for rental_app}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment or .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./deploy/postgres-init.sh:/docker-entrypoint-initdb.d/10-rental.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U atlas -d rental_atlas"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d rental_atlas"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -21,13 +23,26 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     environment:
-      DATABASE_URL: postgres://atlas:${POSTGRES_PASSWORD}@db:5432/rental_atlas?sslmode=disable
+      DATABASE_URL: host=db port=5432 dbname=rental_atlas user=rental_app sslmode=disable
+      PGPASSWORD: ${RENTAL_DB_PASSWORD:?Set a separate password for rental_app}
       ADDR: 0.0.0.0:8080
+      APP_ENV: production
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?Set your public HTTPS origin}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-172.30.80.1/32}
+      AUTH_COOKIE_SECURE: "true"
       ALLOW_PUBLISH: ${ALLOW_PUBLISH:-false}
     env_file:
       - .env.server.local
     volumes:
       - auth_runtime:/app/data/runtime
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /tmp:size=96m,mode=1777
+    mem_limit: 768m
+    pids_limit: 128
+    networks: [default]
     depends_on:
       db:
         condition: service_healthy
@@ -38,3 +53,9 @@ volumes:
 secrets:
   amap_env:
     file: .env.local
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.30.80.0/24

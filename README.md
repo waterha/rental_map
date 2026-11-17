@@ -31,17 +31,17 @@ QQ SMTP 配置使用后端专用 `.env.server.local`，自动加载，绝不使�
 | 前端 | React 19、TypeScript、Vite 7 |
 | 全国 / 省 / 市 | D3 Geo + SVG，DataV.GeoAtlas 行政边界；全国使用两档简化 TopoJSON 与共享省界 |
 | 区县 | 高德 Web JS API 2.0，深蓝底图、区县遮罩、道路 / 建筑 / 地名、房源标记 |
-| 后端 | Go 1.24+，标准库 net/http、database/sql |
-| 数据库 | 本地 SQLite；正式部署支持 PostgreSQL 17 / pgx |
+| 后端 | Go 1.26.11+，标准库 net/http、database/sql |
+| 数据库 | 本地 SQLite；正式部署使用 PostgreSQL 17 / pgx 及独立受限账号 |
 | 测试 | Go testing、Playwright / Microsoft Edge |
 
 内置 18 城市共 216 条示例房源。示例位置和室内展示图片不代表真实出租信息；详情内明确标识。示例坐标若因行政中心偏移超出区县边界，仅将其示意光点移至该区县内部，真实房源坐标不会自动移动。没有接入真实房源来源。
 
-此前的侧栏、搜索、收藏和发布界面已从当前页面移除。原 Go 数据库与 API 保留，现有记录不会因为界面调整而删除。
+此前的侧栏、搜索和收藏界面已从当前页面移除，发布入口位于左上角「+」。原 Go 数据库与 API 保留，现有记录不会因为界面调整而删除。
 
 ## 本地运行
 
-需要 Node.js 22.12+ 和 Go 1.24+。
+需要 Node.js 22.12+ 和 Go 1.26.11+。
 
 ```powershell
 ./scripts/start.ps1
@@ -80,14 +80,16 @@ Vite 在启动 / 构建时读取配置。更改后重启开发服务或执行 `n
 已有数据库：
 
 ```powershell
-$env:DATABASE_URL='postgres://atlas:YOUR_PASSWORD@127.0.0.1:5432/rental_atlas?sslmode=disable'
+$env:DATABASE_URL='postgres://rental_app:YOUR_APP_PASSWORD@127.0.0.1:5432/rental_atlas?sslmode=disable'
 go run ./cmd/server
 ```
 
 Docker Compose：
 
 ```powershell
-$env:POSTGRES_PASSWORD='replace_with_a_strong_password'
+$env:POSTGRES_PASSWORD='replace_with_admin_password'
+$env:RENTAL_DB_PASSWORD='replace_with_app_password'
+$env:PUBLIC_ORIGIN='https://rental.example.com'
 docker compose up --build -d
 ```
 
@@ -124,3 +126,8 @@ npm run test:e2e:isolated
 服务端校验登录状态、同源请求、字段、照片内容及区县边界内的位置，不接受匿名发布。每个账号每小时最多发起 20 次发布请求。图片重新编码为 JPEG，去掉原文件名和 EXIF / GPS 信息；元数据与房源一同持久化。地图点位是用户自行提供，未经地址真实性核验。
 
 用户照片位于 `DATA_DIR/runtime/uploads`，已排除在 Git、Docker 构建上下文之外。Compose 的 `auth_runtime` 持久卷同时保存照片；备份数据库时应同步备份此目录。照片和联系方式在发布后可被所有访客查看，表单有公开提示。生产入口反向代理请允许至少 26 MB 请求体，适当调高上传超时；应用默认上传读取超时为 90 秒。
+
+
+## 公开部署的安全配置
+
+已加入应用层限流、并发准入、上传存储上限、受信代理校验和生产 HTTPS 域名校验。**宝塔 / Nginx 部署步骤、参数与实际防护边界见 [安全部署说明](docs/security.md)。**生产数据库必须使用独立的非管理员 PostgreSQL 账号；原 Compose 若已初始化超级用户 `atlas`，必须先迁移账号，不要删除旧数据卷。`PUBLIC_ORIGIN` 必须填写真实 HTTPS 域名。高德真实地图已在内容安全策略下验证。

@@ -21,6 +21,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -48,6 +49,7 @@ type Auth struct {
 	now          func() time.Time
 	CookieSecure bool
 	dummyHash    []byte
+	nextCleanup  atomic.Int64
 }
 
 func NewAuth(ctx context.Context, store *Store, directory string) (*Auth, error) {
@@ -217,7 +219,12 @@ func validPassword(password string) bool {
 func (a *Auth) allowed(ctx context.Context, key string, limit int, window int64) (bool, error) {
 	now := a.now().Unix()
 	bucket := now / window * window
-	_, _ = a.Store.DB.ExecContext(ctx, a.Store.bind("DELETE FROM auth_rate_limits WHERE window_start < ?"), now-86400)
+	next := a.nextCleanup.Load()
+	if now >= next && a.nextCleanup.CompareAndSwap(next, now+3600) {
+		_, _ = a.Store.DB.ExecContext(ctx, a.Store.bind("DELETE FROM auth_rate_limits WHERE window_start < ?"), now-86400)
+		_, _ = a.Store.DB.ExecContext(ctx, a.Store.bind("DELETE FROM email_verifications WHERE expires_at < ?"), now-86400)
+		_, _ = a.Store.DB.ExecContext(ctx, a.Store.bind("DELETE FROM account_sessions WHERE expires_at <= ?"), now)
+	}
 	result, err := a.Store.DB.ExecContext(ctx, a.Store.bind(`INSERT INTO auth_rate_limits(key_hash,window_start,hits) VALUES(?,?,1)
  ON CONFLICT(key_hash) DO UPDATE SET window_start=excluded.window_start,
  hits=CASE WHEN auth_rate_limits.window_start=excluded.window_start THEN auth_rate_limits.hits+1 ELSE 1 END
@@ -321,7 +328,7 @@ func (a *Auth) sendCode(w http.ResponseWriter, r *http.Request) {
 		fail(w, 503, "邮件服务尚未配置，暂时无法发送验证码")
 		return
 	}
-	if !a.rate(w, r, "send-ip:"+clientAddress(r), 5, 600) || !a.rate(w, r, "send-email:"+email, 10, 3600) {
+	if !a.rate(w, r, "send-global", 100, 3600) || !a.rate(w, r, "send-ip:"+clientAddress(r), 5, 600) || !a.rate(w, r, "send-email:"+email, 10, 3600) {
 		return
 	}
 	var exists int
@@ -410,12 +417,6 @@ func (a *Auth) register(w http.ResponseWriter, r *http.Request) {
 	if !a.rate(w, r, "register-ip:"+clientAddress(r), 20, 600) || !a.rate(w, r, "register-email:"+email, 15, 600) {
 		return
 	}
-	// Password work happens before the transaction to avoid holding database locks during bcrypt.
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte(input.Password), 12)
-	if err != nil {
-		fail(w, 500, "注册暂不可用")
-		return
-	}
 	id, err := randomToken(16)
 	if err != nil {
 		fail(w, 500, "注册暂不可用")
@@ -469,6 +470,13 @@ func (a *Auth) register(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		fail(w, 400, "验证码错误，请检查邮件中的验证码")
+		return
+	}
+	// Reject missing/expired/incorrect OTPs before doing expensive password work.
+	// Valid registrations hold this transaction briefly; admission limits bound bcrypt concurrency.
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(input.Password), 12)
+	if err != nil {
+		fail(w, 500, "注册暂不可用")
 		return
 	}
 	result, err := tx.ExecContext(r.Context(), a.Store.bind("INSERT INTO accounts(id,email,password_hash,verified_at,created_at) VALUES(?,?,?,?,?) ON CONFLICT(email) DO NOTHING"), id, email, string(passwordHash), now, now)

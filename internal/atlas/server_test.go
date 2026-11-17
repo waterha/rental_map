@@ -279,7 +279,7 @@ func TestDownloadedDistrictIndexSurvivesRestart(t *testing.T) {
 	if district, exists := restarted.Get("330102"); !exists || district.Parent != "330100" {
 		t.Fatal("new district index was lost after restart")
 	}
-	if _, err := os.Stat(filepath.Join(s.Maps.Dir, "maps", "330100.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(s.Maps.Dir, "runtime", "maps", "330100.json")); err != nil {
 		t.Fatal("downloaded map was not cached")
 	}
 }

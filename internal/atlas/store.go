@@ -66,6 +66,14 @@ func OpenStore(ctx context.Context, directory, dsn string) (*Store, error) {
 		driver = "pgx"
 	} else {
 		dsn = filepath.Join(directory, "rental.db")
+		file, err := os.OpenFile(dsn, os.O_CREATE|os.O_RDWR, 0600)
+		if err != nil {
+			return nil, err
+		}
+		file.Close()
+		if err = os.Chmod(dsn, 0600); err != nil {
+			return nil, err
+		}
 	}
 	db, err := sql.Open(driver, dsn)
 	if err != nil {
@@ -86,6 +94,23 @@ func OpenStore(ctx context.Context, directory, dsn string) (*Store, error) {
 	if err = db.PingContext(ctx); err != nil {
 		db.Close()
 		return nil, err
+	}
+	if os.Getenv("APP_ENV") == "production" {
+		if !pg {
+			db.Close()
+			return nil, fmt.Errorf("production requires PostgreSQL")
+		}
+		var privileged bool
+		// MEMBER also catches roles reachable through SET ROLE even if NOINHERIT
+		// currently hides their privileges. Built-in pg_* roles grant capabilities
+		// outside this application's schema and are unnecessary for the service.
+		if err = db.QueryRowContext(ctx, `SELECT EXISTS (
+ SELECT 1 FROM pg_roles WHERE pg_has_role(current_user,oid,'MEMBER')
+ AND (rolsuper OR rolcreaterole OR rolcreatedb OR rolreplication OR rolbypassrls OR LEFT(rolname,3)='pg_')
+ )`).Scan(&privileged); err != nil || privileged {
+			db.Close()
+			return nil, fmt.Errorf("production requires a restricted database role")
+		}
 	}
 	schema := `CREATE TABLE IF NOT EXISTS listings (
  id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL, type TEXT NOT NULL,
@@ -159,31 +184,50 @@ func (s *Store) Insert(ctx context.Context, l Listing) error {
 	return tx.Commit()
 }
 
-func (s *Store) All(ctx context.Context) ([]Listing, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT l.id,l.title,l.description,l.type,l.price,l.area,l.rooms,l.floor,l.orientation,l.community,l.province_code,l.city_code,l.district_code,l.city,l.district,l.address,l.longitude,l.latitude,l.image,l.tags,l.contact,l.created_at,l.is_demo,l.owner,COALESCE(d.details,'{}') FROM listings l LEFT JOIN listing_details d ON d.listing_id=l.id ORDER BY l.created_at DESC, l.id ASC`)
+const listingColumns = `l.id,l.title,l.description,l.type,l.price,l.area,l.rooms,l.floor,l.orientation,l.community,l.province_code,l.city_code,l.district_code,l.city,l.district,l.address,l.longitude,l.latitude,l.image,l.tags,l.contact,l.created_at,l.is_demo,l.owner,COALESCE(d.details,'{}')`
+const listingJoin = ` FROM listings l LEFT JOIN listing_details d ON d.listing_id=l.id`
+
+type listingScanner interface{ Scan(...any) error }
+
+func scanListing(row listingScanner) (Listing, error) {
+	var l Listing
+	var tags, details string
+	var demo int
+	err := row.Scan(&l.ID, &l.Title, &l.Description, &l.Type, &l.Price, &l.Area, &l.Rooms, &l.Floor, &l.Orientation, &l.Community, &l.ProvinceCode, &l.CityCode, &l.DistrictCode, &l.City, &l.District, &l.Address, &l.Longitude, &l.Latitude, &l.Image, &tags, &l.Contact, &l.CreatedAt, &demo, &l.Owner, &details)
+	if err != nil {
+		return l, err
+	}
+	if err = json.Unmarshal([]byte(tags), &l.Tags); err != nil {
+		return l, err
+	}
+	if err = json.Unmarshal([]byte(details), &l.ListingDetails); err != nil {
+		return l, err
+	}
+	if len(l.Images) == 0 && l.Image != "" {
+		l.Images = []string{l.Image}
+	}
+	l.IsDemo = demo == 1
+	return l, nil
+}
+func (s *Store) readListings(ctx context.Context, tail string, args ...any) ([]Listing, error) {
+	rows, err := s.DB.QueryContext(ctx, s.bind("SELECT "+listingColumns+listingJoin+tail), args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	listings := []Listing{}
 	for rows.Next() {
-		var l Listing
-		var tags, details string
-		var demo int
-		if err = rows.Scan(&l.ID, &l.Title, &l.Description, &l.Type, &l.Price, &l.Area, &l.Rooms, &l.Floor, &l.Orientation, &l.Community, &l.ProvinceCode, &l.CityCode, &l.DistrictCode, &l.City, &l.District, &l.Address, &l.Longitude, &l.Latitude, &l.Image, &tags, &l.Contact, &l.CreatedAt, &demo, &l.Owner, &details); err != nil {
+		l, err := scanListing(rows)
+		if err != nil {
 			return nil, err
 		}
-		if err = json.Unmarshal([]byte(tags), &l.Tags); err != nil {
-			return nil, err
-		}
-		if err = json.Unmarshal([]byte(details), &l.ListingDetails); err != nil {
-			return nil, err
-		}
-		if len(l.Images) == 0 && l.Image != "" {
-			l.Images = []string{l.Image}
-		}
-		l.IsDemo = demo == 1
 		listings = append(listings, l)
 	}
 	return listings, rows.Err()
+}
+func (s *Store) All(ctx context.Context) ([]Listing, error) {
+	return s.readListings(ctx, " ORDER BY l.created_at DESC,l.id ASC")
+}
+func (s *Store) Find(ctx context.Context, id string) (Listing, error) {
+	return scanListing(s.DB.QueryRowContext(ctx, s.bind("SELECT "+listingColumns+listingJoin+" WHERE l.id=?"), id))
 }

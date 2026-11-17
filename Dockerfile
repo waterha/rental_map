@@ -7,7 +7,7 @@ COPY src ./src
 COPY public ./public
 RUN --mount=type=secret,id=amap_env,target=/app/.env.local npm run build
 
-FROM golang:1.26-alpine AS backend
+FROM golang:1.26.11-alpine AS backend
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download

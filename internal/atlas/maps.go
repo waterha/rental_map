@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"golang.org/x/sync/singleflight"
 	"io"
 	"log"
 	"net/http"
@@ -27,10 +28,12 @@ type Region struct {
 }
 
 type Maps struct {
-	Dir     string
-	mu      sync.RWMutex
-	regions map[string]Region
-	client  *http.Client
+	group    singleflight.Group
+	failures map[string]time.Time
+	Dir      string
+	mu       sync.RWMutex
+	regions  map[string]Region
+	client   *http.Client
 }
 
 var validCode = regexp.MustCompile(`^\d{6}$`)
@@ -44,10 +47,20 @@ func NewMaps(directory string) (*Maps, error) {
 	if err = json.Unmarshal(data, &regions); err != nil {
 		return nil, err
 	}
-	m := &Maps{Dir: directory, regions: map[string]Region{}, client: &http.Client{Timeout: 15 * time.Second}}
+	m := &Maps{failures: map[string]time.Time{}, Dir: directory, regions: map[string]Region{}, client: &http.Client{Timeout: 15 * time.Second}}
 	m.regions["100000"] = Region{Code: "100000", Name: "全国", Level: "country", Center: [2]float64{104, 35}, HasChildren: true}
 	for _, r := range regions {
 		m.regions[r.Code] = r
+	}
+	if cached, err := os.ReadFile(filepath.Join(directory, "runtime", "regions.json")); err == nil {
+		var extra []Region
+		if json.Unmarshal(cached, &extra) == nil {
+			for _, r := range extra {
+				if validCode.MatchString(r.Code) {
+					m.regions[r.Code] = r
+				}
+			}
+		}
 	}
 	return m, nil
 }
@@ -82,10 +95,39 @@ func (m *Maps) Read(ctx context.Context, code string) ([]byte, error) {
 	if !r.HasChildren {
 		return nil, errors.New("已到达区县层级")
 	}
-	file := filepath.Join(m.Dir, "maps", code+".json")
-	if data, err := os.ReadFile(file); err == nil {
-		return data, nil
+	result, err, _ := m.group.Do(code, func() (any, error) {
+		data, err := m.read(ctx, code)
+		return data, err
+	})
+	if err != nil {
+		return nil, err
 	}
+	return result.([]byte), nil
+}
+func (m *Maps) read(ctx context.Context, code string) ([]byte, error) {
+	for _, name := range []string{filepath.Join(m.Dir, "runtime", "maps", code+".json"), filepath.Join(m.Dir, "maps", code+".json")} {
+		if data, err := os.ReadFile(name); err == nil {
+			return data, nil
+		}
+	}
+	m.mu.RLock()
+	until := m.failures[code]
+	m.mu.RUnlock()
+	if time.Now().Before(until) {
+		return nil, errors.New("map upstream is cooling down")
+	}
+	succeeded := false
+	defer func() {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		if succeeded {
+			delete(m.failures, code)
+		} else {
+			m.failures[code] = time.Now().Add(30 * time.Second)
+		}
+	}()
+	file := filepath.Join(m.Dir, "runtime", "maps", code+".json")
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://geo.datav.aliyun.com/areas_v3/bound/"+code+"_full.json", nil)
 	if err != nil {
 		return nil, err
@@ -98,9 +140,9 @@ func (m *Maps) Read(ctx context.Context, code string) ([]byte, error) {
 	if res.StatusCode != 200 {
 		return nil, fmt.Errorf("地图服务返回 %d", res.StatusCode)
 	}
-	data, err := io.ReadAll(io.LimitReader(res.Body, 12<<20))
-	if err != nil {
-		return nil, err
+	data, err := io.ReadAll(io.LimitReader(res.Body, (12<<20)+1))
+	if err != nil || len(data) > 12<<20 {
+		return nil, errors.New("map response invalid or too large")
 	}
 	var fc struct {
 		Type     string `json:"type"`
@@ -132,12 +174,14 @@ func (m *Maps) Read(ctx context.Context, code string) ([]byte, error) {
 	}
 	sort.Slice(indexed, func(i, j int) bool { return indexed[i].Code < indexed[j].Code })
 	if encoded, encodeErr := json.Marshal(indexed); encodeErr == nil {
-		if persistErr := atomicWrite(filepath.Join(m.Dir, "regions.json"), encoded); persistErr != nil {
+		_ = os.MkdirAll(filepath.Join(m.Dir, "runtime"), 0700)
+		if persistErr := atomicWrite(filepath.Join(m.Dir, "runtime", "regions.json"), encoded); persistErr != nil {
 			log.Printf("persist region index: %v", persistErr)
 		}
 	}
 	m.mu.Unlock()
 	// A unique temporary file and atomic rename prevent concurrent requests from seeing partial GeoJSON.
+	_ = os.MkdirAll(filepath.Dir(file), 0700)
 	temp, err := os.CreateTemp(filepath.Dir(file), code+"-*.tmp")
 	if err == nil {
 		tempName := temp.Name()
@@ -151,6 +195,7 @@ func (m *Maps) Read(ctx context.Context, code string) ([]byte, error) {
 		}
 		_ = os.Remove(tempName)
 	}
+	succeeded = true
 	return data, nil
 }
 
