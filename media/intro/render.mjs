@@ -11,7 +11,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '../..')
 const args = new Set(process.argv.slice(2))
 const output = path.join(here, 'output')
-const fps = 30, width = 1920, height = 1080, duration = 36
+const fps = 30, width = 1920, height = 1080
 await mkdir(output, { recursive: true })
 const packageRoot = process.env.VIDEO_NODE_MODULES || path.join(root, '.local/video-tools/node_modules')
 const localRequire = createRequire(path.join(packageRoot, '__video_runtime__.cjs'))
@@ -50,19 +50,21 @@ try {
   })
   await page.goto(`http://127.0.0.1:${server.address().port}/?export=1`,{waitUntil:'networkidle'})
   await page.evaluate(()=>document.fonts.ready)
+  const { duration, playbackRate } = await page.evaluate(()=>({duration:window.PROMO_DURATION,playbackRate:window.PROMO_PLAYBACK_RATE}))
+  const frames = Math.round(duration * fps)
   if(errors.length) throw new Error(errors.join('\n'))
   if (!args.has('--video-only')) {
-    for (const t of [2.3,5.6,7.3,9.5,14.7,22.2,29.5,34.5]) {
+    for (const t of [0,2.3,3.5,5.6,8,11.4,15.4,21.3,27.2,28.7]) {
       await page.evaluate(time=>window.renderAt(time),t)
-      await page.screenshot({path:path.join(output,`frame-${t.toFixed(1).replace('.','-')}.png`),type:'png'})
+      await page.screenshot({path:path.join(output,`v3-frame-${t.toFixed(1).replace('.','-')}.png`),type:'png'})
       console.log(`Preview frame: ${t}s`)
     }
   }
   if (!args.has('--stills')) {
-    const audio = await createSoundtrack(path.join(output,'soundtrack-v2.wav'))
-    const video = path.join(output,'rental-map-intro-1080p-v2.mp4')
+    const audio = await createSoundtrack(path.join(output,'soundtrack-v3.wav'))
+    const video = path.join(output,'rental-map-intro-1080p-v3.mp4')
     const logs=[]
-    encoder = spawn(ffmpeg,['-y','-hide_banner','-loglevel','warning','-f','image2pipe','-framerate',String(fps),'-vcodec','mjpeg','-i','pipe:0','-i',audio,'-map','0:v:0','-map','1:a:0','-vf','scale=in_range=full:out_range=tv:out_color_matrix=bt709,format=yuv420p','-c:v','libx264','-preset','medium','-crf','18','-pix_fmt','yuv420p','-color_range','tv','-colorspace','bt709','-color_primaries','bt709','-color_trc','bt709','-af','volume=8dB','-c:a','aac','-b:a','192k','-ar','48000','-t',String(duration),'-movflags','+faststart',video],{stdio:['pipe','ignore','pipe']})
+    encoder = spawn(ffmpeg,['-y','-hide_banner','-loglevel','warning','-f','image2pipe','-framerate',String(fps),'-vcodec','mjpeg','-i','pipe:0','-i',audio,'-map','0:v:0','-map','1:a:0','-vf','scale=in_range=full:out_range=tv:out_color_matrix=bt709,format=yuv420p','-c:v','libx264','-preset','medium','-crf','18','-pix_fmt','yuv420p','-color_range','tv','-colorspace','bt709','-color_primaries','bt709','-color_trc','bt709','-af',`atempo=${playbackRate},volume=8dB`,'-c:a','aac','-b:a','192k','-ar','48000','-t',String(duration),'-movflags','+faststart',video],{stdio:['pipe','ignore','pipe']})
     const completed = new Promise((resolve,reject)=>{
       encoder.once('error',reject);encoder.once('exit',code=>code===0?resolve():reject(new Error(`FFmpeg exited ${code}: ${logs.join('').slice(-1800)}`)))
     })
@@ -70,16 +72,16 @@ try {
     completed.catch(()=>{})
     encoder.stderr.on('data',chunk=>logs.push(chunk.toString()))
     encoder.stdin.on('error',()=>{})
-    for(let frame=0;frame<duration*fps;frame++) {
+    for(let frame=0;frame<frames;frame++) {
       await page.evaluate(time=>window.renderAt(time),frame/fps)
       const jpg=await page.screenshot({type:'jpeg',quality:95,animations:'allow',caret:'hide'})
       if(encoder.exitCode !== null) await completed
       if(!encoder.stdin.write(jpg)) await once(encoder.stdin,'drain')
-      if(frame%90===0) console.log(`Rendering ${frame}/${duration*fps} frames (${Math.round(frame/duration/fps*100)}%)`)
+      if(frame%90===0) console.log(`Rendering ${frame}/${frames} frames (${Math.round(frame/frames*100)}%)`)
     }
     encoder.stdin.end();await completed
     if(errors.length) throw new Error(errors.join('\n'))
-    await writeFile(path.join(output,'render-info-v2.json'),JSON.stringify({title:'租房版图 · 位置附近，一眼找房',width,height,fps,duration,frames:duration*fps,video:'rental-map-intro-1080p-v2.mp4',audio:'Sparse short plucks; no sustained pad, bass or drone; no voiceover',github:'https://github.com/waterha/rental_map',callToAction:'觉得好的点点star',externalRequests:0,source:'HTML/CSS/JS deterministic animation + FFmpeg'},null,2))
+    await writeFile(path.join(output,'render-info-v3.json'),JSON.stringify({title:'租房版图 · 位置附近，一眼找房',width,height,fps,duration,frames,playbackRate,video:'rental-map-intro-1080p-v3.mp4',audio:'Reordered sparse short plucks at 1.25x tempo, original pitch; no sustained pad, bass or drone; no voiceover',github:'https://github.com/waterha/rental_map',callToAction:'觉得好的点点star',projectCard:'opening',externalRequests:0,source:'HTML/CSS/JS deterministic animation + FFmpeg'},null,2))
     console.log(`Exported ${video}`)
   }
 } finally {

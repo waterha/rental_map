@@ -73,20 +73,25 @@
   $('street-camera').insertBefore(eastShade, $('nearby-rings'));
   $('price-c').style.left = '1190px'; $('price-c').style.top = '817px';
   const sceneLabels = ['租房版图 · 地图找房', '01 / 找到目标区域', '02 / 看清位置关系', '03 / 点开，就是房源', '04 / 找房，不被区界限制', '租房版图 · 位置附近，一眼找房'];
+  const playbackRate = 1.25, sourceDuration = 36, introDuration = 4.5;
+  const duration = sourceDuration / playbackRate;
   function renderAt(seconds) {
-    const t = clamp(seconds, 0, 36);
+    const elapsed = clamp(seconds, 0, duration);
+    const sequenceTime = elapsed * playbackRate;
+    // Move the former closing card to the start, followed by the complete demo.
+    const t = sequenceTime < introDuration ? 31.5 + sequenceTime : sequenceTime - introDuration;
     section('opening', t, -.2, 4.9);
     section('geography', t, 4.2, 10.7);
-    const streetAlpha = ease(ramp(t, 10, .9)) * (1 - smooth(ramp(t, 31.2, .9)));
+    const streetAlpha = sequenceTime < introDuration ? 0 : ease(ramp(t, 10, .9));
     visible($('street-stage'), streetAlpha);
     section('nearby', t, 10, 18.1);
     section('detail', t, 17.4, 24.8);
-    section('merge', t, 24.1, 32.1);
-    // Keep the completed end card visible on the final frame.
-    visible($('ending'), ease(ramp(t, 31.4, .85)));
-    $('ending').style.transform = `translateY(${(1 - ease(ramp(t, 31.4, 1))) * 20}px)`;
-    visible($('end-github'), ease(ramp(t, 31.9, .65)));
-    $('end-github').style.transform = `translateY(${(1 - ease(ramp(t, 31.9, .75))) * 15}px)`;
+    section('merge', t, 24.1, 33);
+    const introAlpha = 1 - smooth(ramp(sequenceTime, introDuration - .55, .55));
+    visible($('ending'), introAlpha);
+    $('ending').style.transform = 'none';
+    visible($('end-github'), introAlpha);
+    $('end-github').style.transform = 'none';
     const openProgress = ease(ramp(t, .3, 2.5));
     $('opening').querySelector('h1').style.transform = `translateY(${(1 - openProgress) * 18}px)`;
     document.querySelectorAll('.opening-label').forEach((label, index) => {
@@ -162,15 +167,16 @@
     if (t >= 19.4 && t < 21.5) { const p = ease(ramp(t, 19.4, .8)); x = 1290 + (1095 - 1290) * p; y = 620 + (407 - 620) * p; alpha = ease(ramp(t, 19.4, .3)) * (1 - ramp(t, 21, .5)); }
     if (t >= 26.2 && t < 28.2) { const p = ease(ramp(t, 26.2, .8)); x = 540 + (408 - 540) * p; y = 880 + (790 - 880) * p; alpha = ease(ramp(t, 26.2, .25)) * (1 - ramp(t, 27.7, .5)); }
     cursor.style.transform = `translate(${x}px,${y}px)`; cursor.style.opacity = alpha;
-    const index = t < 4.5 ? 0 : t < 10.3 ? 1 : t < 17.8 ? 2 : t < 24.5 ? 3 : t < 31.5 ? 4 : 5;
+    const index = sequenceTime < introDuration ? 5 : t < 4.5 ? 0 : t < 10.3 ? 1 : t < 17.8 ? 2 : t < 24.5 ? 3 : 4;
     $('footer-label').textContent = sceneLabels[index];
-    $('time-code').textContent = `00:${Math.floor(t).toString().padStart(2, '0')}`;
-    $('progress-bar').style.width = `${t / 36 * 100}%`;
-    $('seek').value = t;
-    return { seconds: t, scene: index, duration: 36 };
+    $('time-code').textContent = `00:${Math.floor(elapsed).toString().padStart(2, '0')}`;
+    $('progress-bar').style.width = `${elapsed / duration * 100}%`;
+    $('seek').value = elapsed;
+    return { seconds: elapsed, sourceSeconds: t, scene: index, duration };
   }
   window.renderAt = renderAt;
-  window.PROMO_DURATION = 36;
+  window.PROMO_DURATION = duration;
+  window.PROMO_PLAYBACK_RATE = playbackRate;
   const exporting = new URLSearchParams(location.search).has('export');
   if (exporting) document.body.classList.add('exporting');
   function resize() { $('film').style.transform = `scale(${Math.min(innerWidth / 1920, innerHeight / 1080)})`; }
@@ -179,7 +185,7 @@
   $('toggle').onclick = () => { paused = !paused; last = performance.now(); };
   $('seek').oninput = event => { time = Number(event.target.value); paused = true; renderAt(time); };
   function tick(now) {
-    if (!paused) { time += (now - last) / 1000; if (time >= 36) { time = 36; paused = true; } renderAt(time); }
+    if (!paused) { time += (now - last) / 1000; if (time >= duration) { time = duration; paused = true; } renderAt(time); }
     last = now; requestAnimationFrame(tick);
   }
   renderAt(exporting ? 0 : .01);

@@ -35,14 +35,17 @@ export async function createSoundtrack(destination) {
   }
   const pcm = Buffer.alloc(44 + count * 4);
   pcm.write('RIFF',0);pcm.writeUInt32LE(pcm.length-8,4);pcm.write('WAVEfmt ',8);pcm.writeUInt32LE(16,16);pcm.writeUInt16LE(1,20);pcm.writeUInt16LE(2,22);pcm.writeUInt32LE(rate,24);pcm.writeUInt32LE(rate*4,28);pcm.writeUInt16LE(4,32);pcm.writeUInt16LE(16,34);pcm.write('data',36);pcm.writeUInt32LE(count*4,40);
+  // Reorder the same music with the former ending moved to the opening.
+  const introSamples = Math.round(4.5 * rate);
   for (let n = 0; n < count; n++) {
-    pcm.writeInt16LE(Math.round(Math.max(-1, Math.min(1, left[n])) * 32767),44+n*4);
-    pcm.writeInt16LE(Math.round(Math.max(-1, Math.min(1, right[n])) * 32767),46+n*4);
+    const sourceIndex = n < introSamples ? count - introSamples + n : n - introSamples;
+    pcm.writeInt16LE(Math.round(Math.max(-1, Math.min(1, left[sourceIndex])) * 32767),44+n*4);
+    pcm.writeInt16LE(Math.round(Math.max(-1, Math.min(1, right[sourceIndex])) * 32767),46+n*4);
   }
   await mkdir(path.dirname(destination),{recursive:true});await writeFile(destination,pcm);
   return destination;
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  await createSoundtrack(path.resolve(process.argv[2] || 'media/intro/output/soundtrack-v2.wav'));
+  await createSoundtrack(path.resolve(process.argv[2] || 'media/intro/output/soundtrack-v3.wav'));
   console.log('Created sparse short plucks without sustained bass or drone.');
 }
