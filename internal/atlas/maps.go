@@ -49,6 +49,9 @@ func NewMaps(directory string) (*Maps, error) {
 	}
 	m := &Maps{failures: map[string]time.Time{}, Dir: directory, regions: map[string]Region{}, client: &http.Client{Timeout: 15 * time.Second}}
 	m.regions["100000"] = Region{Code: "100000", Name: "全国", Level: "country", Center: [2]float64{104, 35}, HasChildren: true}
+	if err := m.addRegionIndex(); err != nil {
+		return nil, fmt.Errorf("行政区搜索索引格式错误: %w", err)
+	}
 	for _, r := range regions {
 		m.regions[r.Code] = r
 	}

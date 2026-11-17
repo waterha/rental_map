@@ -1,0 +1,20 @@
+.region-search{position:absolute;z-index:36;top:28px;left:132px}
+.region-search-trigger{width:40px;height:40px;display:grid;place-items:center;border:1px solid #36739355;border-radius:12px;background:#081824d9;color:#78cde6;backdrop-filter:blur(10px)}
+.region-search-trigger:hover,.region-search-trigger[aria-expanded=true]{color:#b4f5ff;border-color:#4cbbd7}
+.region-search-panel{position:absolute;top:52px;left:0;width:min(360px,calc(100vw - 44px));padding:13px;border:1px solid #326178;border-radius:12px;background:#081a29f5;box-shadow:0 15px 50px #0006;backdrop-filter:blur(16px)}
+.region-search-panel form{display:flex;align-items:center;gap:10px;border:1px solid #31566e;border-radius:7px;padding:10px;color:#7edff4;background:#06131f}
+.region-search-panel form:focus-within{border-color:#65d9ee}
+.region-search-panel input{background:none;border:0;outline:0;min-width:0;width:100%;font:inherit;font-size:13px;color:#d0f4ff}
+.region-search-panel input::-webkit-search-cancel-button{display:none}
+.region-search-panel input::placeholder{color:#638ba3}
+.region-search-panel form button{display:grid;place-items:center;color:#85afc4}
+.region-search-hint,.region-search-empty{font-size:11px;color:#789fb5;line-height:1.8;margin:10px 3px 0}
+.region-search-panel ul{padding:0;margin:7px 0 0;list-style:none;max-height:min(360px,calc(100dvh - 240px));overflow:auto;overscroll-behavior:contain}
+.region-search-panel li>button{width:100%;display:flex;align-items:center;gap:10px;text-align:left;border-radius:6px;padding:11px 9px;color:#79b7d0}
+.region-search-panel li[aria-selected=true]>button,.region-search-panel li>button:hover{background:#164158;color:#b7f0ff}
+.region-search-panel li span{flex:1;min-width:0}
+.region-search-panel strong{display:block;font-size:13px;font-weight:500;line-height:1.7}
+.region-search-panel small{display:block;font-size:10px;color:#83a7bc;line-height:1.7;overflow-wrap:anywhere}
+.region-search-panel i{font-size:10px;font-style:normal;white-space:nowrap;color:#78a0b7}
+.map-breadcrumbs{max-width:calc(100% - 220px)}
+@media(max-width:650px){.region-search{left:105px;top:17px}.region-search-trigger{width:34px;height:34px;border-radius:10px}.region-search-panel{left:-88px;top:46px;width:min(360px,calc(100vw - 60px))}.map-breadcrumbs{max-width:calc(100% - 165px);top:17px;right:17px;padding:7px 10px}.map-breadcrumbs i{margin:0 5px}}

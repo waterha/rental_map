@@ -8,6 +8,7 @@ import { useMapCollection } from './map-data'
 import AccountPanel from './AccountPanel'
 import type { Account } from './AccountPanel'
 import './publication.css'
+import RegionSearch from './RegionSearch'
 
 const currentCode = () => new URLSearchParams(location.search).get('region') || national.code
 
@@ -65,16 +66,18 @@ export default function App() {
   const trail = region.code === national.code ? [national] : [...ancestors.filter(item => item.code !== national.code), region]
   if (trail[0]?.code !== national.code) trail.unshift(national)
   const districtFeature = collection?.features.find(feature => String(feature.properties.adcode) === region.code)
+  const districtError = isDistrict && collection && !districtFeature ? '当前边界数据未包含该区县，请返回上级选择其他地区。' : ''
 
   return <main className="atlas-fullscreen" aria-label="租房版图">
     <AccountPanel onUserChange={setUser} loginRequest={loginRequest} onLoginCancel={cancelPublication} />
+    {ready && <RegionSearch regions={regions} current={region.code} onNavigate={navigate} />}
     <button className="publish-trigger" aria-label="发布房源" title="发布房源" aria-pressed={publishing} onClick={() => { setWantsPublish(true); if (user) setPublishing(true); if (!user) setLoginRequest(value => value + 1) }}><Plus size={21} /></button>
     {publishing && !isDistrict && <div className="publication-guide" role="status"><span>请选择房源所在的省、市、区县，再在街道地图上点选位置。</span><button onClick={cancelPublication} aria-label="取消发布"><X size={16} /></button></div>}
     {ready && (isDistrict
-      ? <DistrictRentals key={region.code} region={region} feature={districtFeature} publishing={publishing} onPublishEnd={cancelPublication} onLoginRequired={() => setLoginRequest(value => value + 1)} />
+      ? districtFeature && <DistrictRentals key={region.code} region={region} feature={districtFeature} publishing={publishing} onPublishEnd={cancelPublication} onLoginRequired={() => setLoginRequest(value => value + 1)} />
       : <MapView region={region} collection={collection} onNavigate={navigate} />)}
     {ready && region.code !== national.code && <nav className="map-breadcrumbs" aria-label="当前行政区路径">{trail.map((item, index) => <span key={item.code}>{index > 0 && <i aria-hidden="true">/</i>}{index === trail.length - 1 ? <strong aria-current="location">{item.code === national.code ? '中国' : item.name}</strong> : <button onClick={() => navigate(item)}>{item.code === national.code ? '中国' : item.name}</button>}</span>)}</nav>}
     {(!ready || loading) && !error && !mapError && <div className="map-loading" role="status"><LoaderCircle size={20} className="spin" /><span>正在展开地图</span></div>}
-    {(error || mapError) && <div className="map-notice" role="alert"><p>{error || mapError}</p><button onClick={() => { retry(); setReload(value => value + 1) }}><RotateCcw size={14} />重新加载</button></div>}
+    {(error || mapError || districtError) && <div className="map-notice" role="alert"><p>{error || mapError || districtError}</p><button onClick={() => { retry(); setReload(value => value + 1) }}><RotateCcw size={14} />重新加载</button></div>}
   </main>
 }
