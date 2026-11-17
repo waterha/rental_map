@@ -36,6 +36,7 @@ export interface Listing {
   contact: string
   createdAt: string
   isDemo: boolean
+  canManage: boolean
 }
 
 export interface RegionCount { code: string; name: string; count: number; average: number }

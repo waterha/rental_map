@@ -14,11 +14,13 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 )
 
 type Server struct {
+	managementMu sync.Mutex
 	photos       *photoBudget
 	Security     *Security
 	Store        *Store
@@ -55,6 +57,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/listings", s.listings)
 	mux.HandleFunc("GET /api/listings/{id}", s.detail)
 	mux.HandleFunc("POST /api/listings", s.create)
+	mux.HandleFunc("PUT /api/listings/{id}", s.editListing)
+	mux.HandleFunc("DELETE /api/listings/{id}", s.deleteListing)
 	mux.HandleFunc("GET /uploads/{name}", s.photo)
 	mux.HandleFunc("GET /uploads/", http.NotFound)
 	mux.HandleFunc("GET /api/session", func(w http.ResponseWriter, r *http.Request) {
@@ -242,10 +246,24 @@ func (s *Server) detail(w http.ResponseWriter, r *http.Request) {
 		fail(w, 503, "房源加载失败")
 		return
 	}
+	if s.Auth != nil {
+		user, authErr := s.Auth.Current(r)
+		if authErr != nil {
+			fail(w, 503, "账号服务暂不可用")
+			return
+		}
+		listing.CanManage = canManageListing(user, listing)
+	}
 	send(w, 200, listing)
 }
 
 func (s *Server) create(w http.ResponseWriter, r *http.Request) {
+	s.writeListing(w, r, false)
+}
+func (s *Server) editListing(w http.ResponseWriter, r *http.Request) {
+	s.writeListing(w, r, true)
+}
+func (s *Server) writeListing(w http.ResponseWriter, r *http.Request, editing bool) {
 	if s.Auth == nil {
 		fail(w, 401, "请先登录后再发布房源")
 		return
@@ -260,6 +278,16 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	accountID := user.ID
+	var previous Listing
+	if editing {
+		s.managementMu.Lock()
+		defer s.managementMu.Unlock()
+		var found bool
+		previous, found = s.managedListing(w, r, user)
+		if !found {
+			return
+		}
+	}
 	if !s.AllowPublish {
 		fail(w, 403, "当前部署未启用发布功能，请联系管理员")
 		return
@@ -267,7 +295,11 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 	if !sameOrigin(w, r) {
 		return
 	}
-	if !s.Auth.rate(w, r, "publish:"+accountID, 20, 3600) {
+	rateKey, rateLimit := "publish:", 20
+	if editing {
+		rateKey, rateLimit = "manage:", 60
+	}
+	if !s.Auth.rate(w, r, rateKey+accountID, rateLimit, 3600) {
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 26<<20)
@@ -299,7 +331,20 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, "请只提交一条房源")
 		return
 	}
-	if len(r.MultipartForm.File["photos"]) < 1 || len(r.MultipartForm.File["photos"]) > 5 {
+	retained := []string{}
+	if editing {
+		for _, image := range l.Images {
+			if !containsString(previous.Images, image) || containsString(retained, image) {
+				fail(w, 400, "只能保留本房源原有照片")
+				return
+			}
+			retained = append(retained, image)
+		}
+		// Editing information preserves the original district and map position.
+		l.DistrictCode, l.Longitude, l.Latitude = previous.DistrictCode, previous.Longitude, previous.Latitude
+	}
+	photoCount := len(retained) + len(r.MultipartForm.File["photos"])
+	if photoCount < 1 || photoCount > 5 {
 		fail(w, 400, "请上传 1–5 张房源照片")
 		return
 	}
@@ -362,7 +407,10 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 	l.City = city.Name
 	l.District = district.Name
 	l.Address = city.Name + district.Name + l.Community
-	inside, err := s.locationInDistrict(r.Context(), district, [2]float64{l.Longitude, l.Latitude})
+	inside := true
+	if !editing {
+		inside, err = s.locationInDistrict(r.Context(), district, [2]float64{l.Longitude, l.Latitude})
+	}
 	if err != nil {
 		fail(w, 503, "区县边界暂不可用，请稍后重试")
 		return
@@ -395,26 +443,44 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 	}
 	l.ID = hex.EncodeToString(b)
 	l.Owner = accountID
+	if editing {
+		l.ID, l.Owner, l.CreatedAt, l.IsDemo = previous.ID, previous.Owner, previous.CreatedAt, previous.IsDemo
+	}
 	images, err := s.savePhotos(r.MultipartForm.File["photos"])
 	if err != nil {
 		fail(w, 400, err.Error())
 		return
 	}
-	l.Images = images
-	l.Image = images[0]
+	l.Images = append(retained, images...)
+	l.Image = l.Images[0]
 	saved := false
 	defer func() {
 		if !saved {
 			s.removePhotos(images)
 		}
 	}()
-	if err = s.Store.Insert(r.Context(), l); err != nil {
+	if editing {
+		err = s.Store.UpdateListing(r.Context(), l, *user)
+	} else {
+		err = s.Store.Insert(r.Context(), l)
+	}
+	if err != nil {
 		log.Printf("insert: %v", err)
 		fail(w, 500, "保存失败，请重试")
 		return
 	}
 	saved = true
-	send(w, 201, l)
+	l.CanManage = true
+	status := http.StatusCreated
+	if editing {
+		status = http.StatusOK
+		for _, image := range previous.Images {
+			if !containsString(l.Images, image) {
+				s.removePhotos([]string{image})
+			}
+		}
+	}
+	send(w, status, l)
 }
 
 func send(w http.ResponseWriter, status int, v any) {

@@ -247,11 +247,11 @@ func (s *Security) Wrap(next http.Handler) http.Handler {
 				return
 			}
 		}
-		if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodPost {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodPost && r.Method != http.MethodPut && r.Method != http.MethodDelete {
 			fail(w, 405, "请求方法不支持")
 			return
 		}
-		mutation := r.Method == http.MethodPost
+		mutation := r.Method != http.MethodGet && r.Method != http.MethodHead
 		if mutation {
 			if !sameOrigin(w, r) {
 				return
@@ -276,7 +276,7 @@ func (s *Security) Wrap(next http.Handler) http.Handler {
 		if mutation && strings.HasPrefix(r.URL.Path, "/api/auth/") {
 			expensive = s.auth
 		}
-		if mutation && r.URL.Path == "/api/listings" {
+		if mutation && (r.URL.Path == "/api/listings" || strings.HasPrefix(r.URL.Path, "/api/listings/")) {
 			expensive = s.uploads
 		}
 		if expensive != nil {
@@ -293,7 +293,7 @@ func (s *Security) Wrap(next http.Handler) http.Handler {
 			r = copy
 		}
 		timeout := 20 * time.Second
-		if mutation && r.URL.Path == "/api/listings" {
+		if mutation && (r.URL.Path == "/api/listings" || strings.HasPrefix(r.URL.Path, "/api/listings/")) {
 			timeout = 90 * time.Second
 		}
 		// Context cancellation alone does not unblock a slow HTTP body read/write.

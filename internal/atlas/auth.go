@@ -40,6 +40,7 @@ var sixDigits = regexp.MustCompile(`^[0-9]{6}$`)
 type Account struct {
 	ID    string `json:"id"`
 	Email string `json:"email"`
+	Role  string `json:"role"`
 }
 type Auth struct {
 	Store        *Store
@@ -50,6 +51,7 @@ type Auth struct {
 	CookieSecure bool
 	dummyHash    []byte
 	nextCleanup  atomic.Int64
+	adminEmails  map[string]bool
 }
 
 func NewAuth(ctx context.Context, store *Store, directory string) (*Auth, error) {
@@ -122,6 +124,17 @@ func NewAuth(ctx context.Context, store *Store, directory string) (*Auth, error)
 	}
 	sort.Strings(domains)
 	auth := &Auth{Store: store, Domains: domains, secret: secret, now: time.Now, CookieSecure: os.Getenv("AUTH_COOKIE_SECURE") == "true", dummyHash: dummy}
+	auth.adminEmails = map[string]bool{}
+	for _, configured := range strings.Split(os.Getenv("AUTH_ADMIN_EMAILS"), ",") {
+		if strings.TrimSpace(configured) == "" {
+			continue
+		}
+		email, err := auth.normalizeEmail(configured)
+		if err != nil {
+			return nil, errors.New("AUTH_ADMIN_EMAILS contains an unsupported email address")
+		}
+		auth.adminEmails[email] = true
+	}
 	sender := strings.ToLower(strings.TrimSpace(os.Getenv("SMTP_FROM")))
 	password := strings.TrimSpace(os.Getenv("SMTP_AUTH_CODE"))
 	if sender != "" && !validQQSender(sender) {
@@ -133,7 +146,49 @@ func NewAuth(ctx context.Context, store *Store, directory string) (*Auth, error)
 	if sender != "" && password != "" && os.Getenv("SMTP_DISABLED") != "true" {
 		auth.Mailer = &QQMailer{Sender: sender, Password: password}
 	}
+	if err := auth.bootstrapAdministrator(ctx); err != nil {
+		return nil, err
+	}
 	return auth, nil
+}
+
+// An operator may provision an initial administrator without public registration.
+// Existing accounts and their passwords are never overwritten.
+func (a *Auth) bootstrapAdministrator(ctx context.Context) error {
+	configuredEmail := strings.TrimSpace(os.Getenv("AUTH_ADMIN_BOOTSTRAP_EMAIL"))
+	password := os.Getenv("AUTH_ADMIN_BOOTSTRAP_PASSWORD")
+	if configuredEmail == "" && password == "" {
+		return nil
+	}
+	email, err := a.normalizeEmail(configuredEmail)
+	if err != nil || !a.adminEmails[email] {
+		return errors.New("bootstrap account must be configured in AUTH_ADMIN_EMAILS")
+	}
+	var exists int
+	err = a.Store.DB.QueryRowContext(ctx, a.Store.bind("SELECT 1 FROM accounts WHERE email=?"), email).Scan(&exists)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return errors.New("cannot check bootstrap account")
+	}
+	if len(password) < 10 || len(password) > 72 {
+		return errors.New("bootstrap password must contain 10 to 72 bytes")
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), 12)
+	if err != nil {
+		return errors.New("cannot hash bootstrap password")
+	}
+	id, err := randomToken(16)
+	if err != nil {
+		return errors.New("cannot generate bootstrap account")
+	}
+	now := a.now().Unix()
+	_, err = a.Store.DB.ExecContext(ctx, a.Store.bind("INSERT INTO accounts(id,email,password_hash,verified_at,created_at) VALUES(?,?,?,?,?) ON CONFLICT(email) DO NOTHING"), id, email, string(hash), now, now)
+	if err != nil {
+		return errors.New("cannot create bootstrap account")
+	}
+	return nil
 }
 
 func containsString(items []string, value string) bool {
@@ -502,7 +557,7 @@ func (a *Auth) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.cookie(w, r, token, sessionTTL)
-	send(w, 201, map[string]any{"user": Account{ID: id, Email: email}})
+	send(w, 201, map[string]any{"user": Account{ID: id, Email: email, Role: a.role(email)}})
 }
 
 func (a *Auth) login(w http.ResponseWriter, r *http.Request) {
@@ -573,6 +628,7 @@ func (a *Auth) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.cookie(w, r, token, sessionTTL)
+	user.Role = a.role(user.Email)
 	send(w, 200, map[string]any{"user": user})
 }
 
@@ -592,7 +648,14 @@ func (a *Auth) Current(r *http.Request) (*Account, error) {
 	if err != nil {
 		return nil, err
 	}
+	user.Role = a.role(user.Email)
 	return &user, nil
+}
+func (a *Auth) role(email string) string {
+	if a.adminEmails[email] {
+		return "admin"
+	}
+	return "user"
 }
 func (a *Auth) cookie(w http.ResponseWriter, r *http.Request, token string, maxAge int) {
 	http.SetCookie(w, &http.Cookie{Name: authCookie, Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: a.CookieSecure || r.TLS != nil, MaxAge: maxAge})

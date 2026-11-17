@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import { Check, LoaderCircle, LogOut, Mail, ShieldCheck, UserRound, X } from 'lucide-react'
 import { api } from './types'
 
-export interface Account { id: string; email: string }
+export interface Account { id: string; email: string; role: 'user' | 'admin' }
 interface AuthConfig { allowedDomains: string[]; codeExpiresIn: number; resendAfter: number; mailAvailable: boolean; passwordMinLength: number; passwordMaxBytes: number }
 
 export default function AccountPanel({ onUserChange, loginRequest = 0, onLoginCancel }: { onUserChange: (user: Account | null) => void; loginRequest?: number; onLoginCancel: () => void }) {
@@ -118,7 +118,7 @@ export default function AccountPanel({ onUserChange, loginRequest = 0, onLoginCa
         <p className="account-eyebrow">RENTAL ATLAS</p>
         <h1>{user ? verified ? '验证成功，欢迎加入' : '你的版图账号' : mode === 'register' ? '从这里，开始新的生活' : '欢迎回到你的版图'}</h1>
         <p className="account-subtitle">{user ? '邮箱已验证，登录状态安全保存。' : mode === 'register' ? '用真实邮箱注册，找到属于你的坐标。' : '使用已验证的邮箱与密码登录。'}</p>
-        {user ? <div className="account-profile"><span className="verified-email"><Check size={15} />{user.email}</span><p>邮箱验证已完成</p><button className="account-submit" onClick={() => { void logout() }} disabled={submitting}>{submitting ? <LoaderCircle className="spin" size={16} /> : <LogOut size={16} />}退出登录</button></div> : <>
+        {user ? <div className="account-profile"><span className="verified-email"><Check size={15} />{user.email}</span><p>{user.role === 'admin' ? '管理员 · 可管理所有房源' : '邮箱验证已完成'}</p><button className="account-submit" onClick={() => { void logout() }} disabled={submitting}>{submitting ? <LoaderCircle className="spin" size={16} /> : <LogOut size={16} />}退出登录</button></div> : <>
           <div className="account-tabs"><button className={mode === 'register' ? 'selected' : ''} onClick={() => switchMode('register')} disabled={sending || submitting}>邮箱注册</button><button className={mode === 'login' ? 'selected' : ''} onClick={() => switchMode('login')} disabled={sending || submitting}>账号登录</button></div>
           {configError ? <div className="account-message error" role="alert">无法加载邮箱规则。<button onClick={() => { void loadConfig() }}>重试</button></div> : !config ? <div className="account-config-loading"><LoaderCircle className="spin" size={18} /></div> : <form onSubmit={event => { void submit(event) }}>
             <label htmlFor="account-email">邮箱地址</label><input id="account-email" type="email" autoComplete="email" placeholder="请输入邮箱地址" value={email} maxLength={254} required disabled={sending || submitting} onChange={event => { setEmail(event.target.value); setCode(''); setError(''); setNotice('') }} />

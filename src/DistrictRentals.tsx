@@ -8,6 +8,7 @@ import type { MapFeature } from './map-data'
 import type { Listing, Marker, Region, Results } from './types'
 import { api } from './types'
 import './rentals.css'
+import type { Account } from './AccountPanel'
 
 const rentalTypes = ['', '整租', '转租', '合租'] as const
 const noMarkers: Marker[] = []
@@ -17,7 +18,8 @@ type DetailResult = { id: string; listing: Listing | null; loading: boolean; err
 
 // This subtree owns rental requests. It never changes geography, map retry state
 // or the DistrictMap key, including when retrying a failed list or detail request.
-export default function DistrictRentals({ region, feature, districts, publishing, onPublishEnd, onLoginRequired }: { region: Region; feature?: MapFeature; districts?: string[]; publishing: boolean; onPublishEnd: () => void; onLoginRequired: () => void }) {
+export default function DistrictRentals({ region, feature, districts, publishing, onPublishEnd, onLoginRequired, user }: { region: Region; feature?: MapFeature; districts?: string[]; publishing: boolean; onPublishEnd: () => void; onLoginRequired: () => void; user: Account | null }) {
+  const [editing, setEditing] = useState<Listing | null>(null)
   const [draft, setDraft] = useState<Position | null>(null)
   const [selecting, setSelecting] = useState(true)
   const [pickError, setPickError] = useState('')
@@ -50,6 +52,7 @@ export default function DistrictRentals({ region, feature, districts, publishing
     detailRequest.current = null
     setDetail(null)
   }, [])
+  useEffect(() => { closeListing(); setEditing(null) }, [user?.id, user?.role, closeListing])
   const openListing = useCallback(async (id: string) => {
     detailRequest.current?.abort()
     const controller = new AbortController()
@@ -66,11 +69,12 @@ export default function DistrictRentals({ region, feature, districts, publishing
   useEffect(() => () => { detailRequest.current?.abort(); detailRequest.current = null }, [])
 
   useEffect(() => {
-    if (publishing) closeListing()
+    if (publishing) { closeListing(); setEditing(null) }
     else { setDraft(null); setSelecting(true); setPickError('') }
   }, [publishing, closeListing])
 
   function published(listing: Listing) {
+    setEditing(null)
     setType(''); setAttempt(value => value + 1); onPublishEnd()
     closeListing()
     setDetail({ id: listing.id, listing, loading: false, error: '' })
@@ -83,6 +87,7 @@ export default function DistrictRentals({ region, feature, districts, publishing
     }} />
     {publishing && selecting && <div className="publication-guide" role="status"><span>{pickError || `在${region.name}地图上点击，确认房源位置`}</span><button aria-label="取消发布" onClick={onPublishEnd}><X size={16} /></button></div>}
     {publishing && draft && <PublicationForm region={region} position={draft} hidden={selecting} onReselect={() => setSelecting(true)} onCancel={onPublishEnd} onPublished={published} onLoginRequired={onLoginRequired} />}
+    {editing && user && <PublicationForm key={editing.id} existing={editing} region={{ ...region, code: editing.districtCode, name: editing.district }} position={[editing.longitude, editing.latitude]} hidden={false} onReselect={() => {}} onCancel={() => setEditing(null)} onPublished={published} onLoginRequired={onLoginRequired} />}
     <section className="rental-legend" aria-label="房源颜色图例">
       <p>房源类型</p>
       <ul>
@@ -99,6 +104,6 @@ export default function DistrictRentals({ region, feature, districts, publishing
         {loading ? '正在加载房源' : result?.error ? <>{result.error}<button onClick={() => setAttempt(value => value + 1)}>重试房源</button></> : result?.total ? `${result.total} 套${type || ''}房源` : `暂无${type || ''}房源`}
       </div>
     </div>
-    {detail && !publishing && <ListingPopover listing={detail.listing} loading={detail.loading} error={detail.error} onClose={closeListing} onRetry={() => { void openListing(detail.id) }} />}
+    {detail && !publishing && !editing && <ListingPopover key={detail.id} listing={detail.listing} canManage={!!user && !!detail.listing?.canManage} loading={detail.loading} error={detail.error} onClose={closeListing} onRetry={() => { void openListing(detail.id) }} onEdit={() => { if (detail.listing) setEditing(detail.listing) }} onDeleted={() => { closeListing(); setAttempt(value => value + 1) }} onLoginRequired={onLoginRequired} />}
   </>
 }

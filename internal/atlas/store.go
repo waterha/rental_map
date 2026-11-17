@@ -45,6 +45,7 @@ type Listing struct {
 	CreatedAt    string   `json:"createdAt"`
 	IsDemo       bool     `json:"isDemo"`
 	Owner        string   `json:"-"`
+	CanManage    bool     `json:"canManage"`
 }
 
 // Separate metadata keeps upgrades compatible with existing SQLite and PostgreSQL databases.

@@ -45,6 +45,9 @@ func (s *Server) removePhotos(paths []string) {
 
 // Decode then encode only pixels: original names, EXIF/GPS and other metadata never survive.
 func (s *Server) savePhotos(files []*multipart.FileHeader) (paths []string, err error) {
+	if len(files) == 0 {
+		return []string{}, nil
+	}
 	reservation := int64(len(files)) * (5 << 20)
 	if s.photos == nil || !s.photos.reserve(reservation) {
 		return nil, errors.New("照片存储额度不足，请联系管理员")
