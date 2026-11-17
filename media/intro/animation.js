@@ -85,6 +85,8 @@
     // Keep the completed end card visible on the final frame.
     visible($('ending'), ease(ramp(t, 31.4, .85)));
     $('ending').style.transform = `translateY(${(1 - ease(ramp(t, 31.4, 1))) * 20}px)`;
+    visible($('end-github'), ease(ramp(t, 31.9, .65)));
+    $('end-github').style.transform = `translateY(${(1 - ease(ramp(t, 31.9, .75))) * 15}px)`;
     const openProgress = ease(ramp(t, .3, 2.5));
     $('opening').querySelector('h1').style.transform = `translateY(${(1 - openProgress) * 18}px)`;
     document.querySelectorAll('.opening-label').forEach((label, index) => {

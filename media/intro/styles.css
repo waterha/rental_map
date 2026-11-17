@@ -168,3 +168,15 @@ body:hover #playback{opacity:1}
 #playback button{border:0;background:#17374c;color:#c0e6f4;border-radius:5px;padding:7px 10px;cursor:pointer}
 #seek{width:280px;accent-color:#67daf1}
 body.exporting #playback{display:none}
+.ending>.eyebrow{top:255px}
+.ending h2{top:305px;font-size:80px;line-height:1.32}
+.ending>p{top:555px}
+.ending .end-pin{top:175px}
+.end-features{top:641px}
+.end-rule{display:none}
+.end-github{position:absolute;z-index:20;top:732px;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:29px;opacity:0;visibility:hidden}
+.end-github a{display:flex;align-items:center;gap:20px;padding:20px 30px;border:1px solid #3d7d98;border-radius:12px;color:#bcefff;background:#102b3ee8;text-decoration:none;font-family:'Bahnschrift','Segoe UI',sans-serif;font-size:28px;letter-spacing:.7px;box-shadow:0 10px 40px #0004}
+.end-github .repo-icon{font-size:31px;color:#99ddf3}
+.end-github a b{font-size:24px;color:#6bbed9;font-weight:400;margin-left:6px}
+.end-star{display:flex;align-items:center;gap:13px;font-size:25px;letter-spacing:2px;color:#d5e6ef}
+.end-star>span{font-size:30px;color:#ffd778;text-shadow:0 0 24px #ffd77838}

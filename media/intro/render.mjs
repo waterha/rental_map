@@ -59,8 +59,8 @@ try {
     }
   }
   if (!args.has('--stills')) {
-    const audio = await createSoundtrack(path.join(output,'soundtrack.wav'))
-    const video = path.join(output,'rental-map-intro-1080p.mp4')
+    const audio = await createSoundtrack(path.join(output,'soundtrack-v2.wav'))
+    const video = path.join(output,'rental-map-intro-1080p-v2.mp4')
     const logs=[]
     encoder = spawn(ffmpeg,['-y','-hide_banner','-loglevel','warning','-f','image2pipe','-framerate',String(fps),'-vcodec','mjpeg','-i','pipe:0','-i',audio,'-map','0:v:0','-map','1:a:0','-vf','scale=in_range=full:out_range=tv:out_color_matrix=bt709,format=yuv420p','-c:v','libx264','-preset','medium','-crf','18','-pix_fmt','yuv420p','-color_range','tv','-colorspace','bt709','-color_primaries','bt709','-color_trc','bt709','-af','volume=8dB','-c:a','aac','-b:a','192k','-ar','48000','-t',String(duration),'-movflags','+faststart',video],{stdio:['pipe','ignore','pipe']})
     const completed = new Promise((resolve,reject)=>{
@@ -79,7 +79,7 @@ try {
     }
     encoder.stdin.end();await completed
     if(errors.length) throw new Error(errors.join('\n'))
-    await writeFile(path.join(output,'render-info.json'),JSON.stringify({title:'租房版图 · 位置附近，一眼找房',width,height,fps,duration,frames:duration*fps,video:'rental-map-intro-1080p.mp4',audio:'Original procedural instrumental; no voiceover',externalRequests:0,source:'HTML/CSS/JS deterministic animation + FFmpeg'},null,2))
+    await writeFile(path.join(output,'render-info-v2.json'),JSON.stringify({title:'租房版图 · 位置附近，一眼找房',width,height,fps,duration,frames:duration*fps,video:'rental-map-intro-1080p-v2.mp4',audio:'Sparse short plucks; no sustained pad, bass or drone; no voiceover',github:'https://github.com/waterha/rental_map',callToAction:'觉得好的点点star',externalRequests:0,source:'HTML/CSS/JS deterministic animation + FFmpeg'},null,2))
     console.log(`Exported ${video}`)
   }
 } finally {

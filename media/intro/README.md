@@ -2,7 +2,7 @@
 
 主题：**直观看见，你想住的位置附近有什么房源。**
 
-36 秒横屏介绍，1920 × 1080、30 fps，科技黑与荧光蓝风格。HTML/CSS/JS 创建画面和动画，Edge/Chromium 在指定时间逐帧渲染，FFmpeg 编码为 H.264 + AAC 的 MP4。视频包含中文画面文案、原创程序生成的轻量背景音乐和转场音效，没有旁白。
+36 秒横屏介绍，1920 × 1080、30 fps，科技黑与荧光蓝风格。HTML/CSS/JS 创建画面和动画，Edge/Chromium 在指定时间逐帧渲染，FFmpeg 编码为 H.264 + AAC 的 MP4。视频包含中文画面文案、原创程序生成的短拨弦旋律和转场提示音，没有旁白。
 
 ## 分镜
 
@@ -43,4 +43,6 @@ FFmpeg 也可以位于 PATH，或使用 `npm install --prefix .local/video-tools
 
 只生成关键帧：`node media/intro/render.mjs --stills`。只导出视频：`node media/intro/render.mjs --video-only`。
 
-输出位于 `media/intro/output/`：`rental-map-intro-1080p.mp4`、关键帧 PNG、背景音乐 WAV 和导出信息 JSON。生成文件不提交 Git，动画源文件可以继续编辑、重新导出。生成器只打开本地动画页并阻止第三方请求；不会操作用户浏览器的已有标签页。
+输出位于 `media/intro/output/`：`rental-map-intro-1080p-v2.mp4`、关键帧 PNG、背景音乐 WAV 和导出信息 JSON。生成文件不提交 Git，动画源文件可以继续编辑、重新导出。生成器只打开本地动画页并阻止第三方请求；不会操作用户浏览器的已有标签页。
+
+第二版删除持续和弦、低音与低频鼓声，改为带间歇的短拨弦音，单音最长 0.30 秒、无延迟反馈。片尾加入 https://github.com/waterha/rental_map 与“觉得好的点点star”。旧版 MP4 保留，新版输出为带 v2 后缀的文件。
