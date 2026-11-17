@@ -30,3 +30,5 @@ credentials*.json
 secrets*.json
 coverage/
 *.zip
+# Rendered introduction video and intermediate frames (source stays versioned).
+/media/intro/output/
