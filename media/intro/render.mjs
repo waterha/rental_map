@@ -53,16 +53,34 @@ try {
   const { duration, playbackRate } = await page.evaluate(()=>({duration:window.PROMO_DURATION,playbackRate:window.PROMO_PLAYBACK_RATE}))
   const frames = Math.round(duration * fps)
   if(errors.length) throw new Error(errors.join('\n'))
+  // Check every camera sample before export; the persistent map must not jump
+  // when captions, panels or layers change. Use projected world anchors.
+  const motion = await page.evaluate(({frames,fps})=>{
+    let previous, maxStep=0, maxStepAt=0
+    for(let frame=0;frame<=frames;frame++) {
+      const state=window.renderAt(frame/fps), c=state.camera
+      if(previous) for(const [x,y] of [[600,0],[1280,540],[1920,1080]]) {
+        const dx=(x-c.x)*c.z-(x-previous.x)*previous.z
+        const dy=(y-c.y)*c.z-(y-previous.y)*previous.z
+        const distance=Math.hypot(dx,dy)
+        if(distance>maxStep){maxStep=distance;maxStepAt=frame/fps}
+      }
+      previous=c
+    }
+    return {maxCameraStepPixels:maxStep,atSeconds:maxStepAt}
+  },{frames,fps})
+  if(motion.maxCameraStepPixels>5) throw new Error(`Camera discontinuity: ${JSON.stringify(motion)}`)
+  console.log(`Motion check: maximum camera step ${motion.maxCameraStepPixels.toFixed(2)} pixels per frame`)
   if (!args.has('--video-only')) {
-    for (const t of [0,2.3,5.5,8.8,12.5,18.8,21.5,24.8,28.5,32.5,36.8,39.2]) {
+    for (const t of [0,3.7,5.2,7.8,10.5,15.5,17.5,19.5,22.8,26.5,30.5,35.8,37.2,39.5]) {
       await page.evaluate(time=>window.renderAt(time),t)
-      await page.screenshot({path:path.join(output,`v4-frame-${t.toFixed(1).replace('.','-')}.png`),type:'png'})
+      await page.screenshot({path:path.join(output,`v5-frame-${t.toFixed(1).replace('.','-')}.png`),type:'png'})
       console.log(`Preview frame: ${t}s`)
     }
   }
   if (!args.has('--stills')) {
-    const audio = await createSoundtrack(path.join(output,'soundtrack-v4.wav'))
-    const video = path.join(output,'rental-map-intro-40s-v4.mp4')
+    const audio = await createSoundtrack(path.join(output,'soundtrack-v5.wav'))
+    const video = path.join(output,'rental-map-intro-40s-v5.mp4')
     const logs=[]
     encoder = spawn(ffmpeg,['-y','-hide_banner','-loglevel','warning','-f','image2pipe','-framerate',String(fps),'-vcodec','mjpeg','-i','pipe:0','-i',audio,'-map','0:v:0','-map','1:a:0','-vf','scale=in_range=full:out_range=tv:out_color_matrix=bt709,format=yuv420p','-c:v','libx264','-preset','medium','-crf','18','-pix_fmt','yuv420p','-color_range','tv','-colorspace','bt709','-color_primaries','bt709','-color_trc','bt709','-af',`atempo=${playbackRate},volume=8dB`,'-c:a','aac','-b:a','192k','-ar','48000','-t',String(duration),'-movflags','+faststart',video],{stdio:['pipe','ignore','pipe']})
     const completed = new Promise((resolve,reject)=>{
@@ -81,7 +99,7 @@ try {
     }
     encoder.stdin.end();await completed
     if(errors.length) throw new Error(errors.join('\n'))
-    await writeFile(path.join(output,'render-info-v4.json'),JSON.stringify({title:'租房版图 · 位置附近，一眼找房',width,height,fps,duration,frames,playbackRate,video:'rental-map-intro-40s-v4.mp4',audio:'Sparse short plucks and transition cues; no sustained pad, bass or drone; no voiceover',github:'https://github.com/waterha/rental_map',callToAction:'觉得好的点点star',projectCard:'opening',features:['region search and drilldown','nearby rentals','type filters','photo carousel and details','merged districts','metro layer','map-pin publication'],externalRequests:0,source:'HTML/CSS/JS deterministic animation + FFmpeg'},null,2))
+    await writeFile(path.join(output,'render-info-v5.json'),JSON.stringify({title:'租房版图 · 位置附近，一眼找房',width,height,fps,duration,frames,playbackRate,motion,video:'rental-map-intro-40s-v5.mp4',audio:'Sparse short plucks and transition cues; no sustained pad, bass or drone; no voiceover',github:'https://github.com/waterha/rental_map',callToAction:'觉得好的点点star',projectCard:'persistent lower-left',visualStyle:'continuous map camera; no full-screen scene replacement',features:['region search and drilldown','nearby rentals','type filters','photo carousel and details','merged districts','metro layer','map-pin publication'],externalRequests:0,source:'HTML/CSS/JS deterministic animation + FFmpeg'},null,2))
     console.log(`Exported ${video}`)
   }
 } finally {

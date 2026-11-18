@@ -1,88 +1,21 @@
 <!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>租房版图 · 位置附近，一眼找房</title>
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-<main id="film" aria-label="租房版图产品介绍动画">
-  <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
-  <div class="grid"></div><div class="vignette"></div>
-  <header class="brand"><span class="brand-symbol"><i></i><b></b></span><strong>租房版图</strong><span class="brand-en">RENTAL ATLAS</span></header>
-  <div class="top-status"><i></i><span>让位置，成为找房的起点</span></div>
-
-  <section class="scene opening" id="opening">
-    <div class="opening-orbits"><i></i><i></i><i></i><i></i><div class="orbit-center"><span></span></div></div>
-    <div class="eyebrow">A CLEARER WAY TO FIND HOME</div>
-    <h1>找房，<br>先看<span class="cyan">位置。</span></h1>
-    <p class="lead">你想住的地方，附近有什么房源？</p>
-    <div class="opening-line"><i></i><span>让房源，回到地图上。</span></div>
-    <div class="opening-label label-a"><b>¥ 2,600</b><span>整租</span></div>
-    <div class="opening-label label-b"><b>¥ 1,500</b><span>合租</span></div>
-    <div class="opening-label label-c"><b>¥ 2,200</b><span>转租</span></div>
-    <div class="opening-place">你想住的地方</div>
-  </section>
-
-  <section class="scene geography" id="geography">
-    <div class="copy geo-copy"><div class="eyebrow">01 / 找到目标区域</div><h2>从中国，<br>到你想住的地方。</h2><p>省 → 市 → 区县<br>逐级展开，也可以搜索省、市、区县直达。</p><div class="search-demo"><span class="search-icon"></span><span id="search-text"></span><i></i><b>↵</b></div></div>
-    <div class="geo-stage"><svg id="geo-svg" viewBox="0 0 1100 870" aria-label="中国到杭州的行政区地图示意"><defs><linearGradient id="geo-fill" x2="1" y2="1"><stop stop-color="#153c51"/><stop offset="1" stop-color="#0b1e2e"/></linearGradient><linearGradient id="geo-active" x2="1" y2="1"><stop stop-color="#25829c"/><stop offset="1" stop-color="#155168"/></linearGradient><filter id="geo-glow"><feGaussianBlur stdDeviation="3"/></filter></defs><g id="geo-china"></g><g id="geo-zhejiang"></g><g id="geo-hangzhou"></g></svg><div class="geo-crosshair"></div><div class="geo-coordinates" id="geo-caption">CHINA / 中国</div></div>
-    <div class="geo-breadcrumb"><span>中国</span><i>/</i><span id="crumb-province">浙江省</span><i id="crumb-slash">/</i><strong id="crumb-city">杭州市 · 西湖区</strong></div>
-  </section>
-
-  <div id="street-stage">
-    <div class="map-heading"><span class="map-dot"></span>杭州市<span class="map-heading-line"></span><strong id="map-scope">西湖区</strong></div>
-    <svg id="street-map" viewBox="0 0 1920 1080" aria-label="工作地点周边房源示意地图">
-      <defs>
-        <radialGradient id="land-fill"><stop stop-color="#102b3c"/><stop offset="1" stop-color="#08131f"/></radialGradient>
-        <radialGradient id="work-fill"><stop stop-color="#41dcff" stop-opacity=".13"/><stop offset="1" stop-color="#41dcff" stop-opacity="0"/></radialGradient>
-        <filter id="point-glow"><feGaussianBlur stdDeviation="7"/></filter>
-        <pattern id="park-lines" width="13" height="13" patternUnits="userSpaceOnUse" patternTransform="rotate(30)"><path d="M0 0V13" stroke="#25574b" stroke-width="2"/></pattern>
-      </defs>
-      <g id="street-camera">
-        <path class="land" d="M500 -120H2020V1200H400Z"/>
-        <path class="river" d="M1520 -110C1290 100 1640 340 1500 510S1490 800 1820 1190L1960 1190C1630 760 1640 670 1620 510S1430 120 1650 -110Z"/>
-        <path class="park" d="M890 690Q1040 640 1095 750T1110 1090H730Q740 890 890 690Z"/>
-        <path fill="url(#park-lines)" opacity=".4" d="M890 690Q1040 640 1095 750T1110 1090H730Q740 890 890 690Z"/>
-        <g id="buildings"></g><g id="roads"></g>
-        <path class="district-boundary west-boundary" d="M670 -80L1430 -30 1430 330Q1390 470 1420 590L1340 790 1400 1150H630Z"/>
-        <path class="district-boundary east-boundary" d="M1430 -30H2000V1150H1400L1340 790 1420 590Q1390 470 1430 330Z"/>
-        <path class="district-seam" d="M1430 -30V330Q1390 470 1420 590L1340 790 1400 1150"/>
-        <g class="map-labels"><text x="1000" y="300">西 湖 区</text><text x="1670" y="310" id="neighbor-label">余 杭 区</text><text x="950" y="890" class="park-name">城市绿地</text></g>
-        <g id="nearby-rings"><circle cx="1320" cy="540" r="290"/><circle cx="1320" cy="540" r="190"/><circle cx="1320" cy="540" r="94"/></g>
-        <circle cx="1320" cy="540" r="315" fill="url(#work-fill)"/>
-        <g id="commute-routes"><path d="M1320 540L1282 485 1190 475 1160 407"/><path d="M1320 540L1385 575 1490 560 1545 648"/><path d="M1320 540L1230 575 1160 654"/></g>
-        <g id="rental-pins"></g>
-        <g id="work-pin"><circle class="work-halo" cx="1320" cy="540" r="52"/><circle cx="1320" cy="540" r="25" fill="#061e30" stroke="#99efff" stroke-width="2"/><path d="M1308 537H1332V553H1308ZM1314 537V531H1326V537M1308 543H1332M1318 543V547H1322V543" fill="none" stroke="#adf4ff" stroke-width="2.1"/><path d="M1314 566L1320 576L1326 566" fill="#8ceaff"/></g>
-      </g>
-    </svg>
-    <div class="work-tag" id="work-tag"><i></i><span>我的上班地点</span></div>
-    <div class="map-legend"><span><i class="red"></i>转租</span><span><i class="purple"></i>整租</span><span><i class="yellow"></i>合租</span></div>
-  </div>
-
-  <section class="scene nearby" id="nearby"><div class="copy"><div class="eyebrow">02 / 看清位置关系</div><h2>上班在哪，<br>就看<span class="cyan">附近。</span></h2><p>房源就在地图上。<br>不用反复核对，一眼看清远近。</p><div class="micro-note"><i></i>拖动地图 · 滚轮缩放 · 看清附近房源</div></div><div class="price-tag" id="price-a"><small>整租</small><strong>¥ 2,600<span>/月</span></strong></div><div class="price-tag" id="price-b"><small>合租</small><strong>¥ 1,500<span>/月</span></strong></div><div class="price-tag red-tag" id="price-c"><small>转租</small><strong>¥ 2,200<span>/月</span></strong></div></section>
-
-  <section class="scene detail" id="detail"><div class="copy"><div class="eyebrow">03 / 点开，就是房源</div><h2>喜欢的位置，<br>直接看房。</h2><p>点击光点，展开房源信息。<br>左右滑动照片，查看户型与联系方式。</p><div class="type-switch" id="type-switch"><span>全部</span><span>整租</span><span>转租</span><span>合租</span></div><div class="micro-note"><i></i>按出租类型筛选，附近房源更好比较</div></div>
-    <div class="listing-card" id="listing-card"><div class="listing-art"><svg id="room-art" viewBox="0 0 420 190"><defs><linearGradient id="room-bg" x2="1" y2="1"><stop stop-color="#234556"/><stop offset="1" stop-color="#102536"/></linearGradient><linearGradient id="window-light" x2="0" y2="1"><stop stop-color="#70bbce"/><stop offset="1" stop-color="#386b80"/></linearGradient></defs><path fill="url(#room-bg)" d="M0 0H420V190H0Z"/><path fill="#142c38" d="M0 141L270 105L420 128V190H0Z"/><path fill="url(#window-light)" d="M255 15H375V115H255Z"/><path fill="none" stroke="#264b5d" stroke-width="6" d="M255 65H375M315 15V115"/><path fill="#54889c" opacity=".2" d="M255 115L140 184H330L375 115Z"/><path fill="#587483" d="M40 100Q40 87 52 87H176Q188 87 188 100V143H40Z"/><path fill="#7995a1" d="M31 116Q31 107 42 107H53V147H31ZM174 107H185Q197 107 197 119V147H174Z"/><path stroke="#253f4b" stroke-width="5" d="M46 147V157M183 147V157"/><rect x="56" y="110" width="111" height="31" rx="5" fill="#6f8c9c"/><path fill="#426a72" d="M229 134L248 132L253 157L232 161Z"/><path stroke="#548f8a" stroke-width="4" d="M241 136V78M241 112Q220 103 220 88M241 104Q258 97 262 82"/><ellipse cx="220" cy="88" rx="9" ry="17" fill="#446d69" transform="rotate(-28 220 88)"/><ellipse cx="261" cy="85" rx="8" ry="17" fill="#5c8b7b" transform="rotate(26 261 85)"/><path d="M110 157L235 148L264 170L132 186Z" fill="#1c404d"/><ellipse cx="220" cy="154" rx="27" ry="9" fill="#71909a"/><path stroke="#4f6a75" stroke-width="4" d="M220 155V174"/></svg><span>示意房源</span><div class="photo-dots"><i></i><i></i><i></i></div></div><div class="listing-body"><div class="listing-kind">整租 · 房东直租<span>西湖区</span></div><h3>近上班地点的阳光一居</h3><p>1 室 1 厅 1 卫 <i></i> 42 m² <i></i> 住宅</p><div class="listing-price">¥ 2,600<small>/ 月</small></div><div class="listing-rule"></div><div class="listing-features"><span>房源照片</span><span>户型价格</span><span>联系方式</span></div></div></div>
-    <div class="click-ring" id="click-ring"></div><div class="detail-caption" id="detail-caption">选位置，再了解房子。</div>
-  </section>
-
-  <section class="scene merge" id="merge"><div class="copy"><div class="eyebrow">04 / 找房，不被区界限制</div><h2>隔壁区，<br>也可能<span class="cyan">更近。</span></h2><p>上班地点靠近区界？<br>合并相邻区域，把附近房源一起看。</p><div class="merge-demo"><div class="merge-demo-head"><span class="merge-symbol">⊞</span> 合区找房</div><div class="merge-chips"><span>✓ 西湖区</span><span id="neighbor-chip">✓ 余杭区</span></div><button id="merge-confirm">一起看房 <span>↗</span></button></div></div><div class="neighbor-callout" id="neighbor-callout"><i></i>靠近上班地点，跨区也能找到</div><div class="merge-path-caption">西湖区 <span>+</span> 余杭区</div></section>
-
-  <section class="scene ending" id="ending"><div class="end-orbit"></div><div class="end-pin"><span></span></div><div class="eyebrow">RENTAL ATLAS / 租房版图</div><h2>位置选对了，<br><span class="cyan">找房就清楚了。</span></h2><p>直观看见，你想住的位置附近有什么房源。</p><div class="end-features"><span>附近房源</span><i></i><span>合区浏览</span><i></i><span>地铁图层</span></div><div class="end-rule"></div></section>
-
-  <div class="end-github" id="end-github"><a href="https://github.com/waterha/rental_map" target="_blank" rel="noopener noreferrer"><span class="repo-icon">⌘</span><span>https://github.com/waterha/rental_map</span><b>↗</b></a><div class="end-star"><span>★</span>觉得好的点点star</div></div>
-
-  <section class="scene metro-scene" id="metro-scene"><div class="copy"><div class="eyebrow">05 / 地铁图层</div><h2>沿着地铁，<br>找<span class="cyan">附近的房。</span></h2><p>进入区县，一键点亮地铁线路。<br>站点与房源一起看，位置更好选。</p><div class="metro-promo-button" id="metro-promo-button"><svg width="25" height="29" viewBox="0 0 25 29"><rect x="4" y="2" width="17" height="20" rx="5"/><path d="M4 12H21M8 22L5 27M17 22L20 27M8 17H9M16 17H17"/></svg><span>地铁图层</span><b id="metro-toggle-state">点击开启</b></div><div class="metro-promo-legend"><span><i></i>线路 A</span><span><i></i>线路 B</span></div><div class="micro-note"><i></i>线路与站点连线示意 · 以实际运营为准</div></div></section>
-  <section class="scene publish-scene" id="publish-scene"><div class="copy"><div class="eyebrow">06 / 地图选点发布</div><h2>你的好房，<br>也能<span class="cyan">亮在这里。</span></h2><p>点击「＋」，在地图上确认位置。<br>添加照片、租金、户型与联系方式。</p><div class="publish-promo-plus" id="publish-promo-plus">＋</div><div class="micro-note"><i></i>发布后，让附近找房的人看见</div></div><div class="publish-preview" id="publish-preview"><span class="publish-preview-tag">位置已确认</span><h3>填写房源信息</h3><div class="publish-photo-strip"><span>照片 1</span><span>照片 2</span><span>＋</span></div><p>1–5 张照片 · 左右滑动展示</p><div class="publish-fields"><span>出租类型</span><span>户型 / 房型</span><span>价格</span><span>联系方式</span></div><div class="publish-preview-submit">发布房源，点亮地图 ↗</div></div><div class="publish-success" id="publish-success">✓ 房源已点亮</div></section>
-  <section class="scene recap-scene" id="recap-scene"><div class="eyebrow">RENTAL ATLAS / 租房版图</div><h2>想住哪里，<br><span class="cyan">附近好房，一眼看见。</span></h2><p>地图找房 · 类型筛选 · 合区浏览 · 地铁图层 · 选点发布</p></section>
-  <div class="merge-selection-preview" id="merge-selection-preview"><div>选择一起查看的区域</div><svg viewBox="0 0 380 180"><path d="M20 30L155 18 200 80 169 157 35 147Z"/><path d="M155 18L335 30 360 140 169 157 200 80Z"/><text x="104" y="94">✓ 西湖区</text><text x="270" y="94">✓ 余杭区</text></svg><p>返回市级选区 → 合并查看</p></div>
-  <div class="map-gesture" id="map-gesture">拖动平移 · 滚轮缩放</div>
-  <footer><span id="footer-label">租房版图 · 地图找房</span><span class="demo-note">功能动画演示 · 房源、街道、地铁及位置关系为示意</span><span id="time-code">00:00</span></footer>
-  <div class="progress"><span id="progress-bar"></span></div>
-  <div id="cursor"><svg width="28" height="34" viewBox="0 0 28 34"><path d="M4 2L23 20L14 21L10 30Z" fill="#e5fbff" stroke="#071a27" stroke-width="2"/></svg></div>
-</main>
-<div id="playback"><button id="toggle">暂停 / 播放</button><input type="range" id="seek" min="0" max="40" step=".01" value="0" aria-label="预览时间"><span>40 秒 · 功能全览 · 1920 × 1080</span></div>
-<script src="map-data.js"></script><script src="animation.js"></script>
-</body></html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>租房版图 · 在同一张地图上找到好房</title><link rel="stylesheet" href="styles.css"></head>
+<body><main id="film">
+<div class="map-surface"><svg id="map" viewBox="0 0 1920 1080"><defs><radialGradient id="terrain"><stop stop-color="#123446"/><stop offset="1" stop-color="#071421"/></radialGradient><pattern id="park" width="15" height="15" patternTransform="rotate(32)" patternUnits="userSpaceOnUse"><path d="M0 0V15" stroke="#2b6551" stroke-width="2"/></pattern><clipPath id="map-clip"><rect x="590" y="0" width="1330" height="1080"/></clipPath></defs>
+<g clip-path="url(#map-clip)"><g id="camera"><path fill="url(#terrain)" d="M300 -400H2400V1500H300Z"/><path class="river" d="M1670 -300Q1460 40 1670 300T1650 650T1950 1300H2080Q1730 830 1770 650T1790 290T1810 -300Z"/><path class="park-land" d="M670 700Q980 620 1090 850L1000 1250H600Z"/><path fill="url(#park)" opacity=".45" d="M670 700Q980 620 1090 850L1000 1250H600Z"/><g id="buildings"></g><g id="roads"></g><path class="district-fill" d="M600 -200H1390L1420 300 1380 550 1450 800 1380 1300H600Z"/><path class="district-fill neighbor-area" id="neighbor-area" d="M1390 -200H2300V1300H1380L1450 800 1380 550 1420 300Z"/><path class="boundary" id="boundary" d="M1390 -200L1420 300 1380 550 1450 800 1380 1300"/><g class="district-labels"><text x="1080" y="270">西 湖 区</text><text x="1660" y="270">余 杭 区</text><text class="park-name" x="840" y="890">城市绿地</text></g><g id="metro-lines"></g><g id="nearby-rings"><circle cx="1280" cy="540" r="135"/><circle cx="1280" cy="540" r="270"/></g><g id="pins"></g><g id="target"><circle class="target-halo" cx="1280" cy="540" r="48"/><circle cx="1280" cy="540" r="23" fill="#09283a" stroke="#9cf0ff" stroke-width="2"/><path d="M1269 536H1291V551H1269ZM1275 536V530H1285V536M1269 542H1291" fill="none" stroke="#bcfaff" stroke-width="2"/><rect x="1190" y="580" width="180" height="39" rx="7" fill="#0c2f42" stroke="#477d90"/><text x="1280" y="605" text-anchor="middle" fill="#bcefff" font-size="16">想住的位置 / 示意</text></g><g id="published-pin"><circle cx="1200" cy="705" r="28" fill="#9bffbd" opacity=".15"/><circle cx="1200" cy="705" r="8" fill="#9bffbd" stroke="#edfff4" stroke-width="2"/><text x="1220" y="712" fill="#bfffd4" font-size="17">新发布的房源</text></g></g></g></svg></div>
+<div class="left-shade"></div><div class="edge-shade"></div>
+<header><span class="logo">◇</span><b>租房版图</b><span>RENTAL ATLAS</span></header>
+<div class="breadcrumb">中国 <i>/</i> 浙江省 <i>/</i> 杭州市 <i>/</i> <strong id="scope">西湖区</strong></div>
+<div class="map-tools"><div id="merge-tool">⊞ <span>合区</span></div><div id="metro-tool">▣ <span>地铁</span></div><div id="publish-tool">＋ <span>发布</span></div></div>
+<div id="captions"></div>
+<div class="search-box" id="search-box"><span>⌕</span><strong id="search-query"></strong><b>↵</b><div id="search-result">浙江省 / 杭州市 / 西湖区 <span>进入 →</span></div></div>
+<div class="type-filter" id="type-filter"><span>全部</span><span>整租</span><span>转租</span><span>合租</span></div>
+<div class="action-note" id="action-note"></div>
+<div class="context-card" id="context-card"><div class="context-title" id="context-title"></div><svg viewBox="0 0 1100 870" id="context-svg"><g id="country-context"></g><g id="province-context"></g><g id="city-context"></g></svg><div class="context-status" id="context-status"></div></div>
+<div class="listing-card" id="listing-card"><div class="room-window"><div class="room-slides" id="room-slides"><svg viewBox="0 0 400 190"><rect width="400" height="190" fill="#204357"/><path d="M0 142L400 114V190H0Z" fill="#173241"/><rect x="254" y="19" width="108" height="99" fill="#6caabe"/><path d="M254 68H362M308 19V118" stroke="#25495c" stroke-width="5"/><rect x="35" y="91" width="145" height="60" rx="12" fill="#7c9ca9"/><rect x="49" y="110" width="117" height="31" rx="5" fill="#5d7e90"/><path d="M45 151V163M169 151V163" stroke="#162d39" stroke-width="6"/><ellipse cx="236" cy="151" rx="32" ry="11" fill="#96aab0"/><path d="M236 151V175" stroke="#64828e" stroke-width="5"/><path d="M213 70V136M214 97L199 80M214 89L228 72" stroke="#619e8a" stroke-width="5"/></svg><svg viewBox="0 0 400 190"><rect width="400" height="190" fill="#33516a"/><path d="M0 135L400 115V190H0Z" fill="#213747"/><rect x="30" y="20" width="98" height="94" fill="#9dbec5"/><path d="M79 20V114" stroke="#36576b" stroke-width="5"/><rect x="180" y="78" width="178" height="78" rx="9" fill="#6d879e"/><rect x="180" y="105" width="178" height="47" rx="8" fill="#b1bdc5"/><rect x="192" y="85" width="61" height="29" rx="7" fill="#d1d9dc"/><rect x="270" y="85" width="61" height="29" rx="7" fill="#d1d9dc"/><path d="M192 156V167M345 156V167" stroke="#192c3b" stroke-width="6"/></svg></div><div class="photo-dots"><i id="photo-dot-a"></i><i id="photo-dot-b"></i></div></div><div class="listing-body"><small>整租 · 房东直租</small><h3>西湖区阳光一居</h3><p>1 室 1 厅 1 卫 · 42 m² · 住宅</p><strong>¥ 2,600 <small>/ 月</small></strong><div class="card-divider"></div><p>照片 · 户型 · 租金 · 联系方式</p><span>示意房源</span></div></div>
+<div class="publish-card" id="publish-card"><small>位置已确认</small><h3>让好房亮在地图上</h3><div class="upload-tiles"><span>照片 1</span><span>照片 2</span><span>＋</span></div><p>1–5 张照片，左右滑动展示</p><div class="field-grid"><span>出租类型 / 户型</span><span>价格 / 联系方式</span></div><b id="publish-submit">发布房源 →</b></div>
+<div class="pin-callout" id="pin-callout">点击光点，查看这套房</div>
+<div class="legend"><span><i class="red"></i>转租</span><span><i class="purple"></i>整租</span><span><i class="yellow"></i>合租</span></div>
+<div class="repository"><a href="https://github.com/waterha/rental_map" target="_blank" rel="noopener noreferrer">github.com/waterha/rental_map <span>↗</span></a><p><span>★</span> 觉得好的点点star</p></div>
+<div class="journey" id="journey"></div><footer><span>功能动画示意 · 房源、街道、地铁与位置关系均为示意</span><span id="clock">00:00 / 00:40</span></footer><div class="progress"><i id="progress"></i></div><div id="cursor"><svg viewBox="0 0 26 33"><path d="M3 2L23 20L14 21L10 31Z" fill="#e6fbff" stroke="#092235" stroke-width="2"/></svg><i id="cursor-ring"></i></div>
+</main><div id="playback"><button id="toggle">暂停 / 播放</button><input id="seek" type="range" min="0" max="40" value="0" step=".01" aria-label="预览时间"><span>40 秒 · 1920 × 1080</span></div><script src="map-data.js"></script><script src="animation.js"></script></body></html>

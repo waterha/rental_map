@@ -29,7 +29,7 @@ export async function createSoundtrack(destination) {
   for (const [start, melody] of phrases) melody.forEach((note, index) => {
     pluck(start + index * .43, notes[note], index === 0 ? .105 : .075, (index - 1) * .22);
   });
-  for (const cue of [6, 10, 18.7, 26, 30.7, 35.65, 37.1]) {
+  for (const cue of [6.7, 16.5, 24.8, 28.8, 35.65, 36.9]) {
     pluck(cue, 1046.502, .038, -.15, .15);
     pluck(cue + .105, 1318.510, .026, .15, .18);
   }
@@ -43,6 +43,6 @@ export async function createSoundtrack(destination) {
   return destination;
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  await createSoundtrack(path.resolve(process.argv[2] || 'media/intro/output/soundtrack-v4.wav'));
+  await createSoundtrack(path.resolve(process.argv[2] || 'media/intro/output/soundtrack-v5.wav'));
   console.log('Created sparse short plucks without sustained bass or drone.');
 }
