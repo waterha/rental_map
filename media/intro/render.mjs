@@ -54,15 +54,15 @@ try {
   const frames = Math.round(duration * fps)
   if(errors.length) throw new Error(errors.join('\n'))
   if (!args.has('--video-only')) {
-    for (const t of [0,2.3,3.5,5.6,8,11.4,15.4,21.3,27.2,28.7]) {
+    for (const t of [0,2.3,5.5,8.8,12.5,18.8,21.5,24.8,28.5,32.5,36.8,39.2]) {
       await page.evaluate(time=>window.renderAt(time),t)
-      await page.screenshot({path:path.join(output,`v3-frame-${t.toFixed(1).replace('.','-')}.png`),type:'png'})
+      await page.screenshot({path:path.join(output,`v4-frame-${t.toFixed(1).replace('.','-')}.png`),type:'png'})
       console.log(`Preview frame: ${t}s`)
     }
   }
   if (!args.has('--stills')) {
-    const audio = await createSoundtrack(path.join(output,'soundtrack-v3.wav'))
-    const video = path.join(output,'rental-map-intro-1080p-v3.mp4')
+    const audio = await createSoundtrack(path.join(output,'soundtrack-v4.wav'))
+    const video = path.join(output,'rental-map-intro-40s-v4.mp4')
     const logs=[]
     encoder = spawn(ffmpeg,['-y','-hide_banner','-loglevel','warning','-f','image2pipe','-framerate',String(fps),'-vcodec','mjpeg','-i','pipe:0','-i',audio,'-map','0:v:0','-map','1:a:0','-vf','scale=in_range=full:out_range=tv:out_color_matrix=bt709,format=yuv420p','-c:v','libx264','-preset','medium','-crf','18','-pix_fmt','yuv420p','-color_range','tv','-colorspace','bt709','-color_primaries','bt709','-color_trc','bt709','-af',`atempo=${playbackRate},volume=8dB`,'-c:a','aac','-b:a','192k','-ar','48000','-t',String(duration),'-movflags','+faststart',video],{stdio:['pipe','ignore','pipe']})
     const completed = new Promise((resolve,reject)=>{
@@ -81,7 +81,7 @@ try {
     }
     encoder.stdin.end();await completed
     if(errors.length) throw new Error(errors.join('\n'))
-    await writeFile(path.join(output,'render-info-v3.json'),JSON.stringify({title:'租房版图 · 位置附近，一眼找房',width,height,fps,duration,frames,playbackRate,video:'rental-map-intro-1080p-v3.mp4',audio:'Reordered sparse short plucks at 1.25x tempo, original pitch; no sustained pad, bass or drone; no voiceover',github:'https://github.com/waterha/rental_map',callToAction:'觉得好的点点star',projectCard:'opening',externalRequests:0,source:'HTML/CSS/JS deterministic animation + FFmpeg'},null,2))
+    await writeFile(path.join(output,'render-info-v4.json'),JSON.stringify({title:'租房版图 · 位置附近，一眼找房',width,height,fps,duration,frames,playbackRate,video:'rental-map-intro-40s-v4.mp4',audio:'Sparse short plucks and transition cues; no sustained pad, bass or drone; no voiceover',github:'https://github.com/waterha/rental_map',callToAction:'觉得好的点点star',projectCard:'opening',features:['region search and drilldown','nearby rentals','type filters','photo carousel and details','merged districts','metro layer','map-pin publication'],externalRequests:0,source:'HTML/CSS/JS deterministic animation + FFmpeg'},null,2))
     console.log(`Exported ${video}`)
   }
 } finally {

@@ -72,26 +72,65 @@
   const eastShade = svg('path', { d: 'M1430 -30H2000V1150H1400L1340 790 1420 590Q1390 470 1430 330Z', fill: '#030a13', opacity: .64 }, null);
   $('street-camera').insertBefore(eastShade, $('nearby-rings'));
   $('price-c').style.left = '1190px'; $('price-c').style.top = '817px';
-  const sceneLabels = ['租房版图 · 地图找房', '01 / 找到目标区域', '02 / 看清位置关系', '03 / 点开，就是房源', '04 / 找房，不被区界限制', '租房版图 · 位置附近，一眼找房'];
-  const playbackRate = 1.25, sourceDuration = 36, introDuration = 4.5;
-  const duration = sourceDuration / playbackRate;
+  const metroGroup = svg('g', { id: 'promo-metro-lines' }, null);
+  $('street-camera').insertBefore(metroGroup, $('rental-pins'));
+  const metroPaths = [];
+  const metroLines = [
+    {color:'#f6789f',points:[[850,350],[1040,350],[1160,407],[1320,470],[1510,434],[1730,434]],names:['站点 A','站点 B','换乘站','站点 C','站点 D','站点 E']},
+    {color:'#77e3c1',points:[[1110,185],[1160,407],[1160,654],[1280,780],[1540,850]],names:['站点 F','换乘站','站点 G','站点 H','站点 I']},
+  ];
+  metroLines.forEach(line => {
+    const d = line.points.map(([x,y],i)=>`${i?'L':'M'}${x} ${y}`).join(' ');
+    const path = svg('path',{d,stroke:line.color,class:'metro-route'},metroGroup);
+    metroPaths.push(path);
+    line.points.forEach(([x,y],i)=>{
+      svg('circle',{cx:x,cy:y,r:8,stroke:line.color,class:'metro-station'},metroGroup);
+      const label=svg('text',{x:x+15,y:y-16,class:'metro-station-label'},metroGroup);label.textContent=line.names[i];
+    });
+  });
+  const publishPin = svg('g',{},$('street-camera'));
+  svg('circle',{cx:1160,cy:654,r:28,fill:'#98f9bf',opacity:'.16'},publishPin);
+  svg('circle',{cx:1160,cy:654,r:8,fill:'#98f9bf',stroke:'#e7fff2','stroke-width':2},publishPin);
+  const secondRoom=$('room-art').cloneNode(true);
+  secondRoom.removeAttribute('id');secondRoom.classList.add('room-slide-alt');
+  secondRoom.querySelectorAll('[id]').forEach(el=>el.removeAttribute('id'));
+  $('room-art').after(secondRoom);
+  const sceneLabels = ['租房版图 · 位置附近，一眼找房','01 / 搜索地区，逐级展开','02 / 看清附近房源','03 / 筛选类型，点开详情','04 / 合区查看，跨区找房','05 / 地铁与房源，同图查看','06 / 选定位置，发布房源','租房版图 · 让位置成为找房的起点'];
+  const playbackRate = 1, duration = 40;
   function renderAt(seconds) {
     const elapsed = clamp(seconds, 0, duration);
-    const sequenceTime = elapsed * playbackRate;
-    // Move the former closing card to the start, followed by the complete demo.
-    const t = sequenceTime < introDuration ? 31.5 + sequenceTime : sequenceTime - introDuration;
-    section('opening', t, -.2, 4.9);
+    const t = elapsed < 4 ? 34 : elapsed < 10 ? 4.2+(elapsed-4)*1.04 : elapsed < 16 ? 10+(elapsed-10)*1.26 : elapsed < 23 ? 17.4+(elapsed-16)*.99 : elapsed < 30 ? 24.1+(elapsed-23)*1.05 : 31.5;
+    visible($('opening'),0);
     section('geography', t, 4.2, 10.7);
-    const streetAlpha = sequenceTime < introDuration ? 0 : ease(ramp(t, 10, .9));
+    const streetAlpha = elapsed < 10 ? 0 : ease(ramp(elapsed,10,.6)) * (1-smooth(ramp(elapsed,37.8,.6)));
     visible($('street-stage'), streetAlpha);
     section('nearby', t, 10, 18.1);
     section('detail', t, 17.4, 24.8);
-    section('merge', t, 24.1, 33);
-    const introAlpha = 1 - smooth(ramp(sequenceTime, introDuration - .55, .55));
-    visible($('ending'), introAlpha);
-    $('ending').style.transform = 'none';
-    visible($('end-github'), introAlpha);
-    $('end-github').style.transform = 'none';
+    section('merge', t, 24.1, 32.1);
+    if(elapsed>=30){visible($('nearby'),0);visible($('detail'),0);visible($('merge'),0);}
+    const introAlpha = 1-smooth(ramp(elapsed,3.5,.5));
+    visible($('ending'),introAlpha);$('ending').style.transform='none';
+    visible($('end-github'),introAlpha);$('end-github').style.transform='none';
+    section('metro-scene',elapsed,30,35.4,.45);
+    section('publish-scene',elapsed,35,38.5,.35);
+    visible($('recap-scene'),ease(ramp(elapsed,38,.5)));
+    const metroEnter=ease(ramp(elapsed,30.7,1.2));
+    visible(metroGroup,metroEnter*(1-smooth(ramp(elapsed,35,.4))));
+    metroPaths.forEach(path=>{const length=path.getTotalLength();path.style.strokeDasharray=length;path.style.strokeDashoffset=length*(1-metroEnter);});
+    $('metro-promo-button').classList.toggle('active',elapsed>=30.7);
+    $('metro-toggle-state').textContent=elapsed>=30.7?'已开启':'点击开启';
+    visible($('merge-selection-preview'),ease(ramp(elapsed,23.45,.4))*(1-smooth(ramp(elapsed,25.8,.4))));
+    visible($('map-gesture'),ease(ramp(elapsed,10.7,.4))*(1-smooth(ramp(elapsed,13.5,.4))));
+    const publishEnter=ease(ramp(elapsed,36,.5));
+    visible($('publish-preview'),publishEnter);
+    $('publish-preview').style.transform=`translateY(${(1-publishEnter)*25}px)`;
+    visible(publishPin,ease(ramp(elapsed,35.65,.4)));
+    visible($('publish-success'),ease(ramp(elapsed,37.1,.35)));
+    const slide=smooth(ramp(elapsed,20, .75));
+    $('room-art').style.transform=`translateX(${-slide*100}%)`;
+    secondRoom.style.transform=`translateX(${100-slide*100}%)`;
+    document.querySelectorAll('.photo-dots i').forEach((dot,i)=>dot.classList.toggle('active',i===(slide>.5?1:0)));
+    document.querySelectorAll('#type-switch span').forEach((chip,i)=>chip.classList.toggle('selected',i===(elapsed>=16.9?1:0)));
     const openProgress = ease(ramp(t, .3, 2.5));
     $('opening').querySelector('h1').style.transform = `translateY(${(1 - openProgress) * 18}px)`;
     document.querySelectorAll('.opening-label').forEach((label, index) => {
@@ -115,7 +154,9 @@
     $('search-text').textContent = '杭州西湖'.slice(0, Math.floor(ramp(t, 7.4, 1.15) * 5));
     document.querySelector('.search-demo>i').style.opacity = Math.floor(t * 2) % 2 ? .9 : .2;
     const cameraShift = ease(ramp(t, 17.5, 1.1)) * -65 + ease(ramp(t, 24.1, 1.1)) * 65;
-    $('street-camera').setAttribute('transform', `translate(${cameraShift} 0)`);
+    const zoom=1+Math.sin(ramp(elapsed,10.5,3)*Math.PI)*.055;
+    const pan=Math.sin(ramp(elapsed,10.5,3)*Math.PI)*-25;
+    $('street-camera').setAttribute('transform', `translate(${cameraShift+pan} 0) translate(1320 540) scale(${zoom}) translate(-1320 -540)`);
     $('work-tag').style.transform = `translateX(${cameraShift}px)`;
     $('work-tag').style.opacity = ease(ramp(t, 10.6, .7));
     $('work-pin').style.opacity = ease(ramp(t, 10.5, .6));
@@ -136,7 +177,7 @@
     $('nearby-rings').style.opacity = .5 + ease(ramp(t, 11, 2)) * .5;
     $('nearby-rings').style.transformOrigin = '1320px 540px';
     $('nearby-rings').style.transform = `scale(${.88 + ease(ramp(t, 10.6, 2.4)) * .12})`;
-    $('commute-routes').style.opacity = ease(ramp(t, 13.2, .9));
+    $('commute-routes').style.opacity = 0;
     $('commute-routes').querySelectorAll('path').forEach((route, index) => {
       const len = route.getTotalLength();
       route.style.strokeDasharray = index === 1 ? '6 8' : '8 6';
@@ -166,8 +207,10 @@
     let x = 0, y = 0, alpha = 0;
     if (t >= 19.4 && t < 21.5) { const p = ease(ramp(t, 19.4, .8)); x = 1290 + (1095 - 1290) * p; y = 620 + (407 - 620) * p; alpha = ease(ramp(t, 19.4, .3)) * (1 - ramp(t, 21, .5)); }
     if (t >= 26.2 && t < 28.2) { const p = ease(ramp(t, 26.2, .8)); x = 540 + (408 - 540) * p; y = 880 + (790 - 880) * p; alpha = ease(ramp(t, 26.2, .25)) * (1 - ramp(t, 27.7, .5)); }
+    if(elapsed>=30&&elapsed<31.5){const p=ease(ramp(elapsed,30,.65));x=570+(385-570)*p;y=830+(659-830)*p;alpha=1-ramp(elapsed,31,.5);}
+    if(elapsed>=35&&elapsed<36.3){const p=ease(ramp(elapsed,35,.65));x=900+(1160-900)*p;y=750+(654-750)*p;alpha=1-ramp(elapsed,36,.3);}
     cursor.style.transform = `translate(${x}px,${y}px)`; cursor.style.opacity = alpha;
-    const index = sequenceTime < introDuration ? 5 : t < 4.5 ? 0 : t < 10.3 ? 1 : t < 17.8 ? 2 : t < 24.5 ? 3 : 4;
+    const index = elapsed<4?0:elapsed<10?1:elapsed<16?2:elapsed<23?3:elapsed<30?4:elapsed<35?5:elapsed<38?6:7;
     $('footer-label').textContent = sceneLabels[index];
     $('time-code').textContent = `00:${Math.floor(elapsed).toString().padStart(2, '0')}`;
     $('progress-bar').style.width = `${elapsed / duration * 100}%`;

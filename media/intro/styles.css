@@ -180,3 +180,28 @@ body.exporting #playback{display:none}
 .end-github a b{font-size:24px;color:#6bbed9;font-weight:400;margin-left:6px}
 .end-star{display:flex;align-items:center;gap:13px;font-size:25px;letter-spacing:2px;color:#d5e6ef}
 .end-star>span{font-size:30px;color:#ffd778;text-shadow:0 0 24px #ffd77838}
+.metro-scene .copy,.publish-scene .copy{top:250px}
+.metro-scene h2,.publish-scene h2{font-size:72px}
+.metro-promo-button{display:flex;align-items:center;gap:15px;width:360px;border:1px solid #478ba3;border-radius:11px;background:#0b2334;padding:18px 20px;margin-top:35px;font-size:20px;color:#b6eafa}
+.metro-promo-button svg{fill:none;stroke:currentColor;stroke-width:1.8}
+.metro-promo-button b{font-size:13px;font-weight:400;color:#76abc2;margin-left:auto}
+.metro-promo-button.active{background:#15485c;border-color:#78e9ff;box-shadow:0 0 34px #45cde92a}
+.metro-promo-legend{display:flex;gap:30px;font-size:16px;color:#98bed1;margin-top:28px}
+.metro-promo-legend span{display:flex;align-items:center;gap:12px}
+.metro-promo-legend i{width:29px;height:4px;background:#f6789f;border-radius:3px}
+.metro-promo-legend span:nth-child(2) i{background:#77e3c1}
+.metro-route{fill:none;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 7px #57caff45)}
+.metro-station{fill:#0b2233;stroke-width:3}
+.metro-station-label{fill:#bcdfeb;font-size:16px;paint-order:stroke;stroke:#0a1d2b;stroke-width:5px;letter-spacing:1px}
+.publish-promo-plus{display:grid;place-items:center;width:58px;height:58px;border:1px solid #68e6ff;border-radius:15px;background:#10394d;font-size:38px;color:#a7f3ff;margin-top:34px}
+.publish-preview{position:absolute;left:1450px;top:280px;width:355px;padding:26px;border:1px solid #3c849d;border-radius:17px;background:linear-gradient(145deg,#103447,#081a2a);box-shadow:0 20px 80px #0008}
+.publish-preview-tag{color:#a9f5c8;font-size:13px;letter-spacing:2px}.publish-preview h3{font-size:25px;margin:16px 0 23px;font-weight:500}
+.publish-photo-strip{display:flex;gap:8px}.publish-photo-strip span{display:grid;place-items:center;width:94px;height:77px;border:1px solid #42728b;border-radius:8px;background:linear-gradient(145deg,#487080,#1a3548);color:#c9e2eb;font-size:14px}.publish-photo-strip span:last-child{background:#0c2437;font-size:25px}
+.publish-preview p{color:#7fa9bf;font-size:12px;margin-top:13px}.publish-fields{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:24px}.publish-fields span{padding:12px 10px;border:1px solid #2e566b;border-radius:7px;color:#8fb5c9;font-size:13px}.publish-preview-submit{border:1px solid #5cdcf5;background:#17596d;border-radius:8px;padding:13px;color:#b9f3ff;font-size:14px;margin-top:25px;text-align:center}
+.publish-success{position:absolute;left:1110px;top:690px;padding:15px 21px;border:1px solid #7cf5b7;border-radius:9px;background:#103c34;color:#b6ffd1;font-size:18px}
+.recap-scene{background:radial-gradient(ellipse at center,#102f41,#040c16 72%);z-index:18;text-align:center}.recap-scene>.eyebrow{margin-top:280px}.recap-scene h2{font-size:82px;line-height:1.5}.recap-scene>p{margin-top:48px;font-size:22px;color:#8fbdd1;letter-spacing:2px}
+.merge-selection-preview{position:absolute;left:1350px;top:262px;width:405px;padding:21px;border:1px solid #4b8c9f;background:#0a2334f5;border-radius:13px;z-index:9;color:#b4e4f1;opacity:0;visibility:hidden;font-size:17px;box-shadow:0 18px 60px #0006}.merge-selection-preview svg{width:100%;height:170px;margin-top:15px}.merge-selection-preview path{fill:#14506a;stroke:#6ce5f5;stroke-width:2}.merge-selection-preview path:nth-child(2){fill:#24635f}.merge-selection-preview text{fill:#cefaff;font-size:17px;text-anchor:middle}.merge-selection-preview p{font-size:14px;color:#7fb6ca;text-align:center}
+.map-gesture{position:absolute;right:112px;bottom:190px;border:1px solid #3b708c;border-radius:8px;background:#0b2435dc;color:#a3d3e6;padding:13px 20px;font-size:16px;letter-spacing:2px;z-index:8;opacity:0;visibility:hidden}
+.detail .micro-note{font-size:16px;margin-top:27px}.type-switch span{transition:none}.type-switch .selected{color:#d8edff}
+.listing-art{overflow:hidden}.listing-art>svg{position:absolute;inset:0}.listing-art .room-slide-alt{filter:hue-rotate(25deg) brightness(1.13)}
+.photo-dots i{transition:none}.photo-dots i:first-child{width:5px;background:#6f9bb1}.photo-dots i.active{width:16px;border-radius:3px;background:#bdeaff}
